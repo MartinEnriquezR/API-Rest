@@ -44,7 +44,7 @@ class Complexion(models.Model):
         db_table = 'COMPLEXION'
 
 class ColorOjos(models.Model):
-    colo_ojo = models.CharField(max_length=20)
+    color_ojo = models.CharField(max_length=20)
 
     class Meta:
         db_table = 'COLOR_OJOS'

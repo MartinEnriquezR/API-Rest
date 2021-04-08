@@ -41,7 +41,7 @@ class Persona(AbstractUser):
 class Usuaria(Persona):
     #datos de complemento
     #persona = models.OneToOneField(Persona)
-    estatura = models.IntegerField()
+    estatura = models.PositiveIntegerField()
     estado_civil = models.CharField(max_length=20)
     escolaridad = models.CharField(max_length=30)
     #llaves foraneas
@@ -54,6 +54,7 @@ class Usuaria(Persona):
     color_piel = models.ForeignKey(ColorPiel, models.DO_NOTHING)
     tipo_ceja = models.ForeignKey(TipoCejas, models.DO_NOTHING)
     textura_cabello = models.ForeignKey(TexturaCabello, models.DO_NOTHING)
+    enfermedades = models.ManyToManyField(Enfermedad)
     #campos requeridos
     REQUIRED_FIELDS=[
         'estatura',
@@ -95,9 +96,10 @@ class DispositivoRastreador(models.Model):
 
 #cuando la usuaria se de de baja del sistema su grupo de confianza tambien se borra
 class GrupoConfianza(models.Model):
+    usuaria = models.OneToOneField('Usuaria', on_delete=models.CASCADE)
     nombre_grupo = models.CharField(max_length=20)
     clave_acceso = models.CharField(max_length=6)
-    usuaria = models.OneToOneField('Usuaria', on_delete=models.CASCADE)
+    miembros = models.ManyToManyField(Persona)
 
     class Meta:
         db_table = 'GRUPO_CONFIANZA'
@@ -164,22 +166,6 @@ class Ubicacion(models.Model):
         'alerta'
     ]
 
-#si la enfermedad es borrada no se debe de hacer nada
-#si la usuaria se borra, el registro se debe de borrar
-class UsuariaHasEnfermedad(models.Model):
-    
-    enfermedad = models.ForeignKey(Enfermedad, models.DO_NOTHING)
-    usuaria = models.ForeignKey(Usuaria, on_delete=models.CASCADE)
-
-    class Meta:
-        db_table = 'USUARIA_HAS_ENFERMEDAD'
-        unique_together = (('enfermedad', 'usuaria'))
-
-    REQUIRED_FIELDS=[
-        'enfermedad'
-        'usuaria'
-    ]
-
 #si la ubicacion corporal se borra no se debe de hacer nada
 #si la sena se borra no se debe de hacer nada
 #si la usuaria se borra el registro se debe de borrar
@@ -201,18 +187,3 @@ class UsuariaHasSenaUbicacion(models.Model):
         'descripcion',
     ]
 
-#si el grupo de confianza se borra el registro se borra
-#si la persona se borra el registro se borra
-class GrupoConfianzaHasContactoConfianza(models.Model):
-    
-    grupo_confianza = models.ForeignKey(GrupoConfianza, on_delete=models.CASCADE)
-    contacto_confianza = models.ForeignKey(Persona, on_delete=models.CASCADE)
-
-    class Meta:
-        db_table = 'GRUPO_CONFIANZA_HAS_CONTACTO_CONFIANZA'
-        unique_together = (('grupo_confianza', 'contacto_confianza'))
-
-    REQUIRED_FIELDS=[
-        'grupo_confianza',
-        'contacto_confianza',
-    ]

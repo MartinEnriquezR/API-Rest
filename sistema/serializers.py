@@ -125,7 +125,7 @@ class usuariaSignupSerializer(serializers.Serializer):
     nacionalidad = serializers.CharField()
     tipo_nariz = serializers.CharField()
     complexion = serializers.CharField()
-    colo_ojo = serializers.CharField()
+    color_ojo = serializers.CharField()
     forma_rostro = serializers.CharField()
     color_cabello = serializers.CharField()
     color_piel = serializers.CharField()
@@ -185,7 +185,7 @@ class usuariaSignupSerializer(serializers.Serializer):
             pais=Pais.objects.get(nacionalidad=data['nacionalidad']),
             tipo_nariz=TipoNariz.objects.get(tipo_nariz=data['tipo_nariz']),
             complexion=Complexion.objects.get(complexion=data['complexion']),
-            color_ojo=ColorOjos.objects.get(colo_ojo=data['colo_ojo']),
+            color_ojo=ColorOjos.objects.get(color_ojo=data['color_ojo']),
             forma_rostro=FormaRostro.objects.get(forma_rostro=data['forma_rostro']),
             color_cabello=ColorCabello.objects.get(color_cabello=data['color_cabello']),
             color_piel=ColorPiel.objects.get(color_piel=data['color_piel']),

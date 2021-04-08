@@ -29,7 +29,7 @@ class ComplexionSerializer(serializers.Serializer):
     complexion = serializers.CharField()
 
 class ColorOjosSerializer(serializers.Serializer):
-    colo_ojo = serializers.CharField()
+    color_ojo = serializers.CharField()
 
 class TexturaCabelloSerializer(serializers.Serializer):
     textura_cabello = serializers.CharField()
