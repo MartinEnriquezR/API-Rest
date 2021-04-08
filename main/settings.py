@@ -27,6 +27,8 @@ DEBUG = True
 
 ALLOWED_HOSTS = []
 
+#modificaciones en el user 
+AUTH_USER_MODEL = 'sistema.Persona'
 
 # Application definition
 
@@ -37,7 +39,28 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    #aplicaciones creadas
+    'catalogo',
+    'sistema',
+    'auditoria',
+    #django rest framework
+    'rest_framework',
+    'rest_framework.authtoken'
 ]
+
+#se elige la respuesta segun el orden en el que se enlistan
+REST_FRAMEWORK={
+    'DEFAULT_RENDERER_CLASSES':(
+        'rest_framework.renderers.JSONRenderer',
+        'rest_framework.renderers.BrowsableAPIRenderer'
+    ),
+    'DEFAULT_AUTHENTICATION_CLASSES':(
+        'rest_framework.authentication.TokenAuthentication',
+    ),
+    'DEFAULT_PERMISSION_CLASSES': (
+        'rest_framework.permissions.IsAuthenticated',
+    ),
+}
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
@@ -76,7 +99,7 @@ WSGI_APPLICATION = 'main.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql_psycopg2',
-        'NAME': 'DBSISTEMA',
+        'NAME': 'SISTEMA',
         'USER': 'postgres',
         'PASSWORD': 'password',
         'HOST': 'localhost',
