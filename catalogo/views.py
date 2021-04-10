@@ -1,5 +1,5 @@
 #django rest framework
-from rest_framework.decorators import api_view, permission_classes
+from rest_framework import viewsets
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny
 
@@ -9,111 +9,88 @@ from .serializers import *
 #importando los modelos de nuestro catalogo
 from .models import *
 
-#creacion de las vistas para enlistar la informacion de las tablas de catalogo
-@api_view(['GET'])
-@permission_classes([AllowAny])
-def listarFormaRostro(request):
-    formas = FormaRostro.objects.all()
-    serializer = FormaRostroSerializer(formas,many=True)
-    return Response(serializer.data)
+class formaRostroViewSet(viewsets.ReadOnlyModelViewSet):
+    """un view set para listar informacion de las formas de rostro"""
+    permission_classes = [AllowAny]
+    queryset = FormaRostro.objects.all()
+    serializer_class = FormaRostroSerializer
 
-@api_view(['GET'])
-@permission_classes([AllowAny])
-def listarColorCabello(request):
-    color = ColorCabello.objects.all()
-    serializer = ColorCabelloSerializer(color,many=True)
-    return Response(serializer.data)
+class colorCabelloViewSet(viewsets.ReadOnlyModelViewSet):
+    """un view set para listar informacion de los colores de cabello"""
+    permission_classes = [AllowAny]
+    queryset = ColorCabello.objects.all()
+    serializer_class = ColorCabelloSerializer
 
-@api_view(['GET'])
-@permission_classes([AllowAny])
-def listarColorPiel(request):
-    color = ColorPiel.objects.all()
-    serializer = ColorPielSerializer(color,many=True)
-    return Response(serializer.data)
+class colorPielViewSet(viewsets.ReadOnlyModelViewSet):
+    """un view set para listar informacion de los colores de piel"""
+    permission_classes = [AllowAny]
+    queryset = ColorPiel.objects.all()
+    serializer_class = ColorPielSerializer
 
-@api_view(['GET'])
-@permission_classes([AllowAny])
-def listarTipoCejas(request):
-    tipo = TipoCejas.objects.all()
-    serializer = TipoCejasSerializer(tipo,many=True)
-    return Response(serializer.data)
+class tipoCejasViewSet(viewsets.ReadOnlyModelViewSet):
+    """un view set para listar informacion del tipo de cejas"""
+    permission_classes = [AllowAny]
+    queryset = TipoCejas.objects.all()
+    serializer_class = TipoCejasSerializer
 
-@api_view(['GET'])
-@permission_classes([AllowAny])
-def listarPais(request):
-    pais = Pais.objects.all()
-    serializer = ColorCabelloSerializer(pais,many=True)
-    return Response(serializer.data)
+class paisViewSet(viewsets.ReadOnlyModelViewSet):
+    """un view set para listar informacion de los paises"""
+    permission_classes = [AllowAny]
+    queryset = Pais.objects.all()
+    serializer_class = PaisSerializer
 
-@api_view(['GET'])
-@permission_classes([AllowAny])
-def listarTipoNariz(request):
-    tipo = TipoNariz.objects.all()
-    serializer = TipoNarizSerializer(tipo,many=True)
-    return Response(serializer.data)
+class tipoNarizViewSet(viewsets.ReadOnlyModelViewSet):
+    """un view set para listar informacion del tipo de nariz"""
+    permission_classes = [AllowAny]
+    queryset = TipoNariz.objects.all()
+    serializer_class = TipoNarizSerializer
 
-@api_view(['GET'])
-@permission_classes([AllowAny])
-def listarComplexion(request):
-    complexion = Complexion.objects.all()
-    serializer = ComplexionSerializer(complexion,many=True)
-    return Response(serializer.data)
+class complexionViewSet(viewsets.ReadOnlyModelViewSet):
+    """un view set para listar informacion de las complexiones"""
+    permission_classes = [AllowAny]
+    queryset = Complexion.objects.all()
+    serializer_class = ComplexionSerializer
 
-@api_view(['GET'])
-@permission_classes([AllowAny])
-def listarColorOjos(request):
-    color = ColorOjos.objects.all()
-    serializer = ColorOjosSerializer(color,many=True)
-    return Response(serializer.data)
+class colorOjosViewSet(viewsets.ReadOnlyModelViewSet):
+    """un view set para listar informacion del color ojos"""
+    permission_classes = [AllowAny]
+    queryset = ColorOjos.objects.all()
+    serializer_class = ColorOjosSerializer
 
-@api_view(['GET'])
-@permission_classes([AllowAny])
-def listarTexturaCabello(request):
-    textura = TexturaCabello.objects.all()
-    serializer = TexturaCabelloSerializer(textura,many=True)
-    return Response(serializer.data)
+class texturaCabelloViewSet(viewsets.ReadOnlyModelViewSet):
+    """un view set para listar informacion de las texturas de cabello"""
+    permission_classes = [AllowAny]
+    queryset = TexturaCabello.objects.all()
+    serializer_class = TexturaCabelloSerializer
 
-@api_view(['GET'])
-@permission_classes([AllowAny])
-def listarEnfermedades(request):
-    enfermedades = Enfermedad.objects.all()
-    serializer = EnfermedadSerializer(enfermedades,many=True)
-    return Response(serializer.data)
+class enfermedadViewSet(viewsets.ReadOnlyModelViewSet):
+    """un view set para listar la informacion de las enfermedades"""
+    permission_classes = [AllowAny]
+    queryset = Enfermedad.objects.all()
+    serializer_class = EnfermedadSerializer
 
-@api_view(['GET'])
-@permission_classes([AllowAny])
-def listarUbicacionCorporal(request):
-    ubicaciones = UbicacionCorporal.objects.all()
-    serializer = UbicacionCorporalSerializer(ubicaciones,many=True)
-    return Response(serializer.data)
+class ubicacionCorporalViewSet(viewsets.ReadOnlyModelViewSet):
+    """un view set para listar la informacion de las ubicaciones"""
+    permission_classes = [AllowAny]
+    queryset = UbicacionCorporal.objects.all()
+    serializer_class = UbicacionCorporalSerializer
 
-@api_view(['GET'])
-@permission_classes([AllowAny])
-def listarCircunstancia(request):
-    circunstancias = Circunstancia.objects.all()
-    serializer = CircunstanciaSerializer(circunstancias,many=True)
-    return Response(serializer.data)
+class circunstanciaViewSet(viewsets.ReadOnlyModelViewSet):
+    """un view set para listar la informacion de las circunstancias"""
+    permission_classes = [AllowAny]
+    queryset = Circunstancia.objects.all()
+    serializer_class = CircunstanciaSerializer
 
-@api_view(['GET'])
-@permission_classes([AllowAny])
-def listarLazo(request):
-    lazos = Lazo.objects.all()
-    serializer = LazoSerializer(lazos,many=True)
-    return Response(serializer.data)
+class lazoViewSet(viewsets.ReadOnlyModelViewSet):
+    """un view set para listar la informacion de los lazos"""
+    permission_classes = [AllowAny]
+    queryset = Lazo.objects.all()
+    serializer_class = LazoSerializer
 
-@api_view(['GET'])
-@permission_classes([AllowAny])
-def listarSenasParticulares(request):
-    senas = SenasParticulares.objects.all()
-    serializer = SenasParticularesSerializer(senas,many=True)
-    return Response(serializer.data)
+class senasParticularesViewSet(viewsets.ReadOnlyModelViewSet):
+    """un view set para listar la informacion de las señas particulares"""
+    permission_classes = [AllowAny]
+    queryset = SenasParticulares.objects.all()
+    serializer_class = SenasParticularesSerializer
 
 
-"""
-@api_view(['POST'])
-def crearEnfermedad(request):
-    serializer = CrearEnfermedadSerializer(data=request.data)
-    serializer.is_valid(raise_exception=True)
-    enfermedad = serializer.save()
-    return Response(EnfermedadSerializer(enfermedad).data)
-"""

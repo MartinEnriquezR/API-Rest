@@ -18,7 +18,7 @@ from django.urls import path, include
 
 
 urlpatterns = [
-    #sitio de admin de django
+    #sitio de administracion de django
     path('admin/', admin.site.urls),
     
     #ulrs del catalogo

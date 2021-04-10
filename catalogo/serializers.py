@@ -6,58 +6,76 @@
 #django rest framewok
 from rest_framework import serializers
 
-class FormaRostroSerializer(serializers.Serializer):
-    forma_rostro = serializers.CharField()
-
-class ColorCabelloSerializer(serializers.Serializer):
-    color_cabello = serializers.CharField()
-
-class ColorPielSerializer(serializers.Serializer):
-    color_piel = serializers.CharField()
-
-class TipoCejasSerializer(serializers.Serializer):
-    tipo_cejas = serializers.CharField()
-
-class PaisSerializer(serializers.Serializer):
-    nombre_pais = serializers.CharField()
-    nacionalidad = serializers.CharField()
-
-class TipoNarizSerializer(serializers.Serializer):
-    tipo_nariz = serializers.CharField()
-
-class ComplexionSerializer(serializers.Serializer):
-    complexion = serializers.CharField()
-
-class ColorOjosSerializer(serializers.Serializer):
-    color_ojo = serializers.CharField()
-
-class TexturaCabelloSerializer(serializers.Serializer):
-    textura_cabello = serializers.CharField()
-
-class EnfermedadSerializer(serializers.Serializer):
-    nombre_enfermedad = serializers.CharField()
-
-class UbicacionCorporalSerializer(serializers.Serializer):
-    nombre_ubicacion_corporal = serializers.CharField()
-
-class CircunstanciaSerializer(serializers.Serializer):
-    tipo_circunstancia = serializers.CharField()
-
-class LazoSerializer(serializers.Serializer):
-    lazo = serializers.CharField()
-
-class SenasParticularesSerializer(serializers.Serializer):
-    nombre_sena_particular = serializers.CharField()
-
-
-"""
-#importando los modelos
+#modelos de catalogo
 from .models import *
 
-class CrearEnfermedadSerializer(serializers.Serializer):
-    nombre_enfermedad = serializers.CharField(max_length=30)
+class FormaRostroSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = FormaRostro
+        fields = ('forma_rostro',)
 
-    def create(self,data):
-        #Crear la enfermedad
-        return Enfermedad.objects.create(**data)
-"""
+class ColorCabelloSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ColorCabello
+        fields = ('color_cabello',)
+
+class ColorPielSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ColorPiel
+        fields = ('color_piel',)
+
+class TipoCejasSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = TipoCejas
+        fields = ('tipo_ceja',)
+
+class PaisSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Pais
+        fields = ('nombre_pais','nacionalidad',)
+    
+class TipoNarizSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = TipoNariz
+        fields = ('tipo_nariz',)
+
+class ComplexionSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Complexion
+        fields = ('complexion',)
+
+class ColorOjosSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ColorOjos
+        fields = ('color_ojo',)
+
+class TexturaCabelloSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = TexturaCabello
+        fields = ('textura_cabello',)
+
+class EnfermedadSerializer(serializers.ModelSerializer):
+    
+    class Meta:
+        model = Enfermedad
+        fields = ['nombre_enfermedad']
+
+class UbicacionCorporalSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = UbicacionCorporal
+        fields = ('nombre_ubicacion_corporal',)
+
+class CircunstanciaSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Circunstancia 
+        fields = ('tipo_circunstancia',)
+
+class LazoSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Lazo 
+        fields = ('lazo',)
+        
+class SenasParticularesSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = SenasParticulares
+        fields = ('nombre_sena_particular',)

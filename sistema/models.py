@@ -38,9 +38,9 @@ class Persona(AbstractUser):
 
 #al ser borrada la persona se borra la usuaria
 #si se borran las tablas de catalogo no se debe de hacer nada
-class Usuaria(Persona):
+class Usuaria(models.Model):
+    persona = models.OneToOneField(Persona, on_delete = models.CASCADE)
     #datos de complemento
-    #persona = models.OneToOneField(Persona)
     estatura = models.PositiveIntegerField()
     estado_civil = models.CharField(max_length=20)
     escolaridad = models.CharField(max_length=30)
@@ -97,8 +97,8 @@ class DispositivoRastreador(models.Model):
 #cuando la usuaria se de de baja del sistema su grupo de confianza tambien se borra
 class GrupoConfianza(models.Model):
     usuaria = models.OneToOneField('Usuaria', on_delete=models.CASCADE)
-    nombre_grupo = models.CharField(max_length=20)
-    clave_acceso = models.CharField(max_length=6)
+    nombre_grupo = models.CharField(max_length = 20)
+    clave_acceso = models.CharField(max_length = 6, unique = True)
     miembros = models.ManyToManyField(Persona)
 
     class Meta:
