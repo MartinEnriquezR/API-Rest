@@ -25,11 +25,13 @@ class personaSerializer(serializers.ModelSerializer):
     class Meta:
         model = Persona
         fields = (
-            'username',
             'email',
+            'username',
             'nombre',
             'apellido_paterno',
             'apellido_materno',
+            'genero',
+            'fecha_nacimiento',
             'is_usuaria',
             'is_contacto_confianza'
         )
@@ -54,7 +56,7 @@ class personaLoginSerializer(serializers.Serializer):
         return data
 
     def create(self,data):
-        #genera o devuelve el token de la persona
+        #genera o devuelve el token de la persona (usuaria o contacto de confianza)
         token, created = Token.objects.get_or_create(user=self.context['persona'])
         return self.context['persona'], token.key
 
@@ -103,24 +105,9 @@ class personaSignupSerializer(serializers.Serializer):
         token, created = Token.objects.get_or_create(user=self.context['persona'])
         return persona, token.key
 
-
-class usuariaSerializer(serializers.ModelSerializer):
-    enfermedades = EnfermedadSerializer(many=True,read_only=True)
-
-    class Meta:
-        model = Usuaria
-        fields = [
-            'estatura',
-            'estado_civil',
-            'escolaridad',
-            'enfermedades'
-        ]
-        
-
-
-
-"""validar las enfermedades"""
+"""finalizado"""
 class usuariaSignupSerializer(serializers.Serializer):
+    
     #datos de la persona
     email = serializers.EmailField(
         validators=[
@@ -157,6 +144,8 @@ class usuariaSignupSerializer(serializers.Serializer):
     color_piel = serializers.CharField()
     tipo_ceja = serializers.CharField()
     textura_cabello = serializers.CharField()
+
+    enfermedades = EnfermedadSerializer(many=True)
 
 
     def validate(self,data):
@@ -262,6 +251,7 @@ class usuariaSignupSerializer(serializers.Serializer):
         ]
         #datos de la usuaria
         dataUsuaria = { index : data[index] for index in usuariaKeys }
+
         #registro de la usuaria
         usuaria = Usuaria.objects.create(
             #instancia de la persona
@@ -280,10 +270,103 @@ class usuariaSignupSerializer(serializers.Serializer):
             textura_cabello=TexturaCabello.objects.get(textura_cabello=data['textura_cabello'])
             #enfermedades=
         )
-        usuaria.enfermedades.add(Enfermedad.objects.get(nombre_enfermedad='Ninguna'))
-        usuaria.enfermedades.add(Enfermedad.objects.get(nombre_enfermedad='Depresion '))
+        
+        #registro de enfermedades
+        enfermedades = data.pop('enfermedades')
+        for enfermedadData in enfermedades:
+            usuaria.enfermedades.add(
+                Enfermedad.objects.get(nombre_enfermedad=enfermedadData['nombre_enfermedad'])
+            )
         
         #obtener el token
         self.context['persona'] = persona
         token, created = Token.objects.get_or_create(user=self.context['persona'])
         return persona, token.key
+
+"""finalizado"""
+class dispositivoSerializer(serializers.ModelSerializer):
+    numero_serie=serializers.IntegerField()
+    estado=serializers.CharField(max_length=20)
+    
+    class Meta:
+        model = DispositivoRastreador
+        fields = (
+            'numero_serie',
+            'estado',
+        )
+
+
+
+
+
+
+
+
+
+"""
+class dispositivoAsociarSerializer(serializers.Serializer):
+    numero_serie = serializers.IntegerField()
+    pin_desactivador = serializers.IntegerField()
+    estado=serializers.CharField(max_length=20)
+    email = serializers.EmailField()
+
+    def validate(self, data):
+        #buscar si el dispositivo se encuentra dentro de la base de datos
+        try:
+            registrado = DispositivoRastreador.objects.get(numero_serie = data['numero_serie'])
+            #verificar que el dispositivo no tenga a ninguna usuaria asignada
+            if registrado.usuaria:
+                raise serializers.ValidationError('Numero de serie incorrecto')
+        except DispositivoRastreador.DoesNotExist:
+            raise serializers.ValidationError('Numero de serie incorrecto.')
+        return(data)
+
+
+    def create(self,data):
+        dispositivo = DispositivoRastreador.objects.get(numero_serie=data['numero_serie'])
+        dispositivo.estado = data['estado']
+        dispositivo.pin_desactivador = data['pin_desactivador']
+        persona = Persona.objects.get(email=data['email'])
+        usuaria = Usuaria.objects.get(persona=persona)
+        dispositivo.usuaria = usuaria 
+        dispositivo.save()
+
+        return dispositivo
+"""
+"""
+class usuariaSerializer(serializers.ModelSerializer):
+    
+    persona=personaSerializer()
+    estatura=serializers.IntegerField()
+    estado_civil=serializers.CharField(max_length=20)
+    escolaridad=serializers.CharField(max_length=30)
+    pais=PaisSerializer()
+    tipo_nariz=TipoNarizSerializer()
+    complexion=ComplexionSerializer()
+    color_ojo=ColorOjosSerializer()
+    forma_rostro=FormaRostroSerializer()
+    color_cabello=ColorCabelloSerializer()
+    color_piel=ColorPielSerializer()
+    tipo_ceja=TipoCejasSerializer()
+    textura_cabello=TexturaCabelloSerializer()
+    enfermedades = EnfermedadSerializer(many=True)
+
+    class Meta:
+        model = Usuaria
+        fields = [
+            'persona',
+            'estatura',
+            'estado_civil',
+            'escolaridad',
+            'pais',
+            'tipo_nariz',
+            'complexion',
+            'color_ojo',
+            'forma_rostro',
+            'color_cabello',
+            'color_piel',
+            'tipo_ceja',
+            'textura_cabello',
+            'enfermedades'
+        ]
+"""

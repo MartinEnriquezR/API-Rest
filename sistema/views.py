@@ -1,12 +1,15 @@
 #django rest framework
 from rest_framework import status
-from rest_framework.permissions import AllowAny
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework import viewsets
 from rest_framework.response import Response
+from rest_framework.decorators import action
+
+#django 
+from django.shortcuts import get_object_or_404
 
 #serializers
 from .serializers import *
-
 #modelos 
 from .models import *
 
@@ -32,7 +35,6 @@ class personaLoginViewSet(viewsets.ViewSet):
         return Response(data,status=status.HTTP_201_CREATED)
 
 
-
 """
 funcion : signup (persona)
 parametros : email, username, nombre, apellido_paterno, apellido_materno
@@ -53,8 +55,6 @@ class personaSignupViewSet(viewsets.ViewSet):
             'access_token' : token
         }
         return Response(data,status=status.HTTP_201_CREATED)
-
-
 
 
 """
@@ -82,18 +82,26 @@ class usuariaSignupViewSet(viewsets.ViewSet):
         return Response(data,status=status.HTTP_201_CREATED)
 
 
-
-
-"""prueba"""
-class prueba(viewsets.ViewSet):
+"""funcion: listar informacion, modificar informacion, borrar informacion
+    parametros: access_token
+    permisos: IsAuthentication
+"""
+class personaViewSet(viewsets.ModelViewSet):
     
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
+    queryset = Persona.objects.all()
+    serializer_class = personaSerializer
     
-    def list(self, request):
-        queryset = Usuaria.objects.all()
-        serializer = usuariaSerializer(queryset, many=True)
-        return Response(serializer.data)
+    def retrieve(self,request,pk=None):
+        persona = get_object_or_404(Persona,username=pk)
+        personaData = personaSerializer(persona).data
+        return Response(personaData, status=status.HTTP_200_OK)
 
+    def destroy(self,request,pk=None):
+        #buscar a la persona
+        persona = get_object_or_404(Persona,username=pk)
+        persona.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 
@@ -104,6 +112,36 @@ class prueba(viewsets.ViewSet):
 
 
 """
+funcion : asociar el dispositivo con la usuaria
+parametros : numero de serie, pin desactivardor, [acccess_token]
+return : mensaje de confirmacion con el numero de serie
+permisos: Token
+
+class dispositivoViewSet(viewsets.ViewSet):
+    permission_classes = [IsAuthenticated]
+
+    def list(self,request):
+        queryset = DispositivoRastreador.objects.all()
+        serializer = dispositivoSerializer(queryset,many=True)
+        print(request.user)
+        return Response(serializer.data)
+    
+    def partial_update(self,request,pk=None):
+        data = request.data
+        data['numero_serie'] = pk
+        serializer = dispositivoAsociarSerializer(data = data)
+        serializer.is_valid(raise_exception = True)
+        serializer.save()
+        return Response(serializer.data)
+"""    
+"""
+class usuariaViewSet(viewsets.ModelViewSet):
+    
+    permission_classes = [AllowAny]
+    queryset = Usuaria.objects.all()
+    serializer_class = usuariaSerializer
+
+
 class userLoginAPIView(APIView):
     permission_classes = [AllowAny]
     
