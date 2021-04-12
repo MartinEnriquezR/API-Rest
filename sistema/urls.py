@@ -9,20 +9,9 @@ from .views import *
 
 router = DefaultRouter()
 
-#login
-#url=login/
-router.register(r'login',personaLoginViewSet,basename = 'login')
 
-#signup
-#url=persona/signup/
-#url=usuaria/signup/
-router.register(r'persona/signup',personaSignupViewSet,basename = 'persona-signup')
-router.register(r'usuaria/signup',usuariaSignupViewSet,basename = 'usuaria-signup')
-
-#listar informacion, borrar persona y modificar datos de persona
-#url = persona/<username>/
 router.register(r'persona',personaViewSet,basename='persona')
-
+router.register(r'usuaria',usuariaViewSet,basename='usuaria')
 
 
 

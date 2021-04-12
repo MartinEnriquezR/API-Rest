@@ -2,29 +2,45 @@
 from rest_framework import status
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework import viewsets
-from rest_framework.response import Response
+from rest_framework import mixins
 from rest_framework.decorators import action
+from rest_framework.response import Response
 
-#django 
+#django
 from django.shortcuts import get_object_or_404
 
 #serializers
 from .serializers import *
+
 #modelos 
 from .models import *
 
+#permiso custom
+from .permissions import *
 
-"""
-funcion : login (ya sea usuaria o contacto de confianza)
-parametros : email y password
-return : username, email, nombre, apellido_paterno, apellido_materno, 
-         access_token, is_usuaria, is_contacto_cofianza
-permisos : AllowAny 
-"""
-class personaLoginViewSet(viewsets.ViewSet):
-    permission_classes = [AllowAny]
+
+class personaViewSet(mixins.RetrieveModelMixin,
+                     mixins.UpdateModelMixin,
+                     mixins.DestroyModelMixin,
+                     viewsets.GenericViewSet):
     
-    def create(self,request):
+    queryset = Persona.objects.all()
+    serializer_class = personaSerializer
+    lookup_field = 'username'
+
+
+    def get_permissions(self):
+        if self.action in ['login','signup']:
+            permissions = [AllowAny]
+        elif self.action in ['retrieve','update','destroy','partial_update']:
+            permissions = [IsAuthenticated, IsAccountOwner]
+        else:
+            permissions = [IsAuthenticated]
+        return [p() for p in permissions]
+
+
+    @action(detail=False,methods=['POST'])
+    def login(self,request):
         serializer = personaLoginSerializer(data = request.data)
         serializer.is_valid(raise_exception = True)
         persona, token = serializer.save()
@@ -35,18 +51,8 @@ class personaLoginViewSet(viewsets.ViewSet):
         return Response(data,status=status.HTTP_201_CREATED)
 
 
-"""
-funcion : signup (persona)
-parametros : email, username, nombre, apellido_paterno, apellido_materno
-            genero, fecha_nacimiento, is_usuaria, is_contacto_confianza
-return : username, email, nombre, apellido_paterno, apellido_materno, 
-         access_token, is_usuaria, is_contacto_cofianza
-permisos : AllowAny 
-"""
-class personaSignupViewSet(viewsets.ViewSet):
-    permission_classes = [AllowAny]
-
-    def create(self,request):
+    @action(detail=False,methods=['POST'])
+    def signup(self,request):
         serializer = personaSignupSerializer(data = request.data)
         serializer.is_valid(raise_exception = True)
         persona, token = serializer.save()
@@ -55,6 +61,59 @@ class personaSignupViewSet(viewsets.ViewSet):
             'access_token' : token
         }
         return Response(data,status=status.HTTP_201_CREATED)
+
+
+class usuariaViewSet(mixins.UpdateModelMixin,
+                     viewsets.GenericViewSet):
+   
+    queryset = Usuaria.objects.all()
+    serializer_class = usuariaSerializer
+    
+    def get_permissions(self):
+        if self.action in ['signup']:
+            permissions = [AllowAny]
+        elif self.action in ['retrieve','borrar']:
+            permissions = [IsAuthenticated,IsAccountOwner]
+        else:
+            permissions = [IsAuthenticated]
+        return [p() for p in permissions]
+
+    @action(detail=False,methods=['POST'])
+    def signup(self,request):
+        serializer = usuariaSignupSerializer(data = request.data)
+        serializer.is_valid(raise_exception = True)
+        persona, token = serializer.save()
+        data = {
+            'persona' : personaSerializer(persona).data,
+            'access_token' : token
+        }
+        return Response(data,status=status.HTTP_201_CREATED)
+
+    @action(detail=False,methods=['GET'])
+    def informacion(self,request,*args,**kwargs):
+        #persona = get_object_or_404(Persona,username=kwargs['pk'])
+        usuaria = Usuaria.objects.get(persona=self.request.user)
+        data = {
+            'informacion_usuaria':usuariaSerializer(usuaria).data
+        }
+        return Response(data)
+
+    @action(detail=False,methods=['DELETE'])
+    def borrar(self,request,*args,**kwargs):
+        usuaria = Usuaria.objects.get(persona=self.request.user)
+        usuaria.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+    @action(detail=False,methods=['UPDATE'])
+    def actualizar(self,request,*args,**kwargs):
+        pass
+
+
+
+
+
+
+
 
 
 """
@@ -67,7 +126,7 @@ parametros : email, username, nombre, apellido_paterno, apellido_materno
 return : username, email, nombre, apellido_paterno, apellido_materno, 
          access_token, is_usuaria, is_contacto_cofianza
 permisos : AllowAny 
-"""
+
 class usuariaSignupViewSet(viewsets.ViewSet):
     permission_classes = [AllowAny]
 
@@ -80,37 +139,7 @@ class usuariaSignupViewSet(viewsets.ViewSet):
             'access_token' : token
         }
         return Response(data,status=status.HTTP_201_CREATED)
-
-
-"""funcion: listar informacion, modificar informacion, borrar informacion
-    parametros: access_token
-    permisos: IsAuthentication
 """
-class personaViewSet(viewsets.ModelViewSet):
-    
-    permission_classes = [IsAuthenticated]
-    queryset = Persona.objects.all()
-    serializer_class = personaSerializer
-    
-    def retrieve(self,request,pk=None):
-        persona = get_object_or_404(Persona,username=pk)
-        personaData = personaSerializer(persona).data
-        return Response(personaData, status=status.HTTP_200_OK)
-
-    def destroy(self,request,pk=None):
-        #buscar a la persona
-        persona = get_object_or_404(Persona,username=pk)
-        persona.delete()
-        return Response(status=status.HTTP_204_NO_CONTENT)
-
-
-
-
-
-
-
-
-
 """
 funcion : asociar el dispositivo con la usuaria
 parametros : numero de serie, pin desactivardor, [acccess_token]
@@ -178,6 +207,49 @@ class usuariaSignupAPIView(APIView):
         usuaria, token = serializer.save()
         data = {
             'usuaria' : personaSerializer(usuaria).data,
+            'access_token' : token
+        }
+        return Response(data,status=status.HTTP_201_CREATED)
+"""
+
+"""
+funcion : login (ya sea usuaria o contacto de confianza)
+parametros : email y password
+return : username, email, nombre, apellido_paterno, apellido_materno, 
+         access_token, is_usuaria, is_contacto_cofianza
+permisos : AllowAny 
+
+class personaLoginViewSet(viewsets.ViewSet):
+    permission_classes = [AllowAny]
+    
+    def create(self,request):
+        serializer = personaLoginSerializer(data = request.data)
+        serializer.is_valid(raise_exception = True)
+        persona, token = serializer.save()
+        data = {
+            'persona' : personaSerializer(persona).data,
+            'access_token' : token
+        }
+        return Response(data,status=status.HTTP_201_CREATED)
+"""
+
+"""
+funcion : signup (persona)
+parametros : email, username, nombre, apellido_paterno, apellido_materno
+            genero, fecha_nacimiento, is_usuaria, is_contacto_confianza
+return : username, email, nombre, apellido_paterno, apellido_materno, 
+         access_token, is_usuaria, is_contacto_cofianza
+permisos : AllowAny 
+
+class personaSignupViewSet(viewsets.ViewSet):
+    permission_classes = [AllowAny]
+
+    def create(self,request):
+        serializer = personaSignupSerializer(data = request.data)
+        serializer.is_valid(raise_exception = True)
+        persona, token = serializer.save()
+        data = {
+            'persona' : personaSerializer(persona).data,
             'access_token' : token
         }
         return Response(data,status=status.HTTP_201_CREATED)

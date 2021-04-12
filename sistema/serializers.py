@@ -170,7 +170,7 @@ class usuariaSignupSerializer(serializers.Serializer):
             raise serializers.ValidationError('el genero de la usuaria debe de ser femenino')
         
         
-        #validar que la usuaria tenga 15 años 
+        #validar que la usuaria tenga  al menos 15 años 
         if diferenciaDias.days < 5475:
             raise serializers.ValidationError('La usuaria debe de tener al menos 15 años cumplidos.')
         
@@ -271,10 +271,11 @@ class usuariaSignupSerializer(serializers.Serializer):
             #enfermedades=
         )
         
-        #registro de enfermedades
+        #registro de la o las enfermedades que padece la usuaria
         enfermedades = data.pop('enfermedades')
         for enfermedadData in enfermedades:
             usuaria.enfermedades.add(
+                #objeto de la enfermedad
                 Enfermedad.objects.get(nombre_enfermedad=enfermedadData['nombre_enfermedad'])
             )
         
@@ -284,15 +285,46 @@ class usuariaSignupSerializer(serializers.Serializer):
         return persona, token.key
 
 """finalizado"""
+class usuariaSerializer(serializers.ModelSerializer):
+
+     pais = PaisSerializer()
+     tipo_nariz = TipoNarizSerializer()
+     complexion = ComplexionSerializer()
+     color_ojo = ColorOjosSerializer()
+     forma_rostro = FormaRostroSerializer()
+     color_cabello = ColorCabelloSerializer()
+     color_piel = ColorPielSerializer()
+     tipo_ceja = TipoCejasSerializer()
+     textura_cabello = TexturaCabelloSerializer()
+     enfermedades = EnfermedadSerializer(many=True)
+     class Meta:
+         model = Usuaria
+         fields = (
+             'estatura',
+             'estado_civil', 
+             'escolaridad',
+             'pais',
+             'tipo_nariz',
+             'complexion',
+             'color_ojo',
+             'forma_rostro',
+             'color_cabello',
+             'color_piel',
+             'tipo_ceja',
+             'textura_cabello',
+             'enfermedades'
+         )
+
+"""finalizado"""
 class dispositivoSerializer(serializers.ModelSerializer):
-    numero_serie=serializers.IntegerField()
-    estado=serializers.CharField(max_length=20)
     
     class Meta:
         model = DispositivoRastreador
         fields = (
             'numero_serie',
             'estado',
+            'pin_desactivador',
+            'usuaria'
         )
 
 
@@ -332,41 +364,4 @@ class dispositivoAsociarSerializer(serializers.Serializer):
         dispositivo.save()
 
         return dispositivo
-"""
-"""
-class usuariaSerializer(serializers.ModelSerializer):
-    
-    persona=personaSerializer()
-    estatura=serializers.IntegerField()
-    estado_civil=serializers.CharField(max_length=20)
-    escolaridad=serializers.CharField(max_length=30)
-    pais=PaisSerializer()
-    tipo_nariz=TipoNarizSerializer()
-    complexion=ComplexionSerializer()
-    color_ojo=ColorOjosSerializer()
-    forma_rostro=FormaRostroSerializer()
-    color_cabello=ColorCabelloSerializer()
-    color_piel=ColorPielSerializer()
-    tipo_ceja=TipoCejasSerializer()
-    textura_cabello=TexturaCabelloSerializer()
-    enfermedades = EnfermedadSerializer(many=True)
-
-    class Meta:
-        model = Usuaria
-        fields = [
-            'persona',
-            'estatura',
-            'estado_civil',
-            'escolaridad',
-            'pais',
-            'tipo_nariz',
-            'complexion',
-            'color_ojo',
-            'forma_rostro',
-            'color_cabello',
-            'color_piel',
-            'tipo_ceja',
-            'textura_cabello',
-            'enfermedades'
-        ]
 """

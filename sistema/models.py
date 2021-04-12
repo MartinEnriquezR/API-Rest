@@ -82,7 +82,7 @@ class DispositivoRastreador(models.Model):
     estado = models.CharField(max_length=20, blank=True, null=True)
     pin_desactivador = models.IntegerField(blank=True, null=True)
     #llaves foraneas
-    usuaria = models.ForeignKey(Usuaria, models.DO_NOTHING, blank=True, null=True)
+    usuaria = models.ForeignKey(Usuaria, models.SET_NULL, blank=True, null=True)
 
     class Meta:
         db_table = 'DISPOSITIVO_RASTREADOR'
