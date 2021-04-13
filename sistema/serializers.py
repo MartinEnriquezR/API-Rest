@@ -327,34 +327,89 @@ class grupoSerializer(serializers.ModelSerializer):
     class Meta:
         model = GrupoConfianza
         fields = (
-            'usuaria',
+            'nombre_grupo',
+            'clave_acceso'
+        )
+
+"""finalizado"""
+class grupoCrearSerializer(serializers.Serializer):
+    #validar el tamaño del nombre del grupo
+    username = serializers.CharField()
+    nombre_grupo = serializers.CharField(max_length=20)
+    
+    def validate(self,data):
+        
+        #verificar que no se haya excedido el maximo numero de grupo permitidos
+        grupos = GrupoConfianza.objects.all().count()
+        if grupos == 1000000:
+            raise serializers.ValidationError('Ya no existen grupos disponibles')
+        
+        #verificar que la usuaria no tenga un grupo ya existente
+        try:
+            persona = Persona.objects.get(username =data['username'])
+        except Persona.DoesNotExist:
+            raise serializers.ValidationError('Username invalido')
+
+        try:
+            usuaria = Usuaria.objects.get(persona=persona)
+        except Usuaria.DoesNotExist:
+            raise serializers.ValidationError('Usuario invalido')
+
+        try:
+            grupo = GrupoConfianza.objects.get(usuaria=usuaria)
+            raise serializers.ValidationError('La usuaria ya tiene un grupo de confianza')
+        except GrupoConfianza.DoesNotExist:
+            pass
+
+        #validar la clave de acceso, que no este en uso por otro grupo
+        seed(1)
+        while True:
+            clave = randint(0,999999)
+            try:
+                GrupoConfianza.objects.get(clave_acceso=str(clave))
+            except GrupoConfianza.DoesNotExist:
+                self.context['clave'] = str(clave)
+                break
+
+        return(data)
+    
+    def create(self,data):
+        #obtener a la usuaria
+        persona = Persona.objects.get(username=data['username'])
+        usuaria = Usuaria.objects.get(persona=persona)
+
+        #guardar la informacion
+        data.pop('username')
+        grupo = GrupoConfianza.objects.create(
+            **data,
+            usuaria = usuaria,
+            clave_acceso = self.context['clave']
+        )
+
+        return grupo
+
+"""finalizado"""
+class MiembroSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Persona
+        fields = (
+            'username',
+            'nombre',
+            'apellido_paterno',
+            'apellido_materno'
+        )
+
+"""finalizado"""
+class grupoInformacionSerializer(serializers.ModelSerializer):
+    miembros = MiembroSerializer(many=True)
+
+    class Meta:
+        model = GrupoConfianza
+        fields = (
             'nombre_grupo',
             'clave_acceso',
             'miembros'
         )
-
-class grupoCrearSerializer(serializers.Serializer):
-    
-    nombre_grupo = serializers.CharField(max_length=20)
- 
-
-    def validate(self,data):
-        #verificar que no se haya excedido el maximo numero de grupo permitidos
-        if numeroGrupo == 1000000:
-            raise serializers.ValidationError('El numero maximo de grupos se excedio :(')
-        
-        seed(1)
-        
-        #verificar que no exista un grupo con esta clave_acceso
-        numeroGrupo = GrupoConfianza.objects.all().count()
-        
-        #agregar la clave a data 
-        clave = randint(0,999999)
-
-        return(data)
-    
-
-
 
 
 

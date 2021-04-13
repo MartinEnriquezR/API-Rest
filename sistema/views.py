@@ -107,23 +107,42 @@ class usuariaViewSet(viewsets.GenericViewSet):
         return Response('hola')
     
 
-class grupoViewSet( mixins.RetrieveModelMixin,
-                    mixins.UpdateModelMixin,
-                    mixins.DestroyModelMixin,
+class grupoViewSet( mixins.UpdateModelMixin,
                     viewsets.GenericViewSet):
     
     permission_classes = [AllowAny]
 
     def create(self,request,*args,**kwargs):
-        print(request.data)
         serializer = grupoCrearSerializer(data = request.data)
-        datos = serializer.is_valid(raise_exception = True)
-        usuaria = get_object_or_404(Usuaria, persona = self.request.user)
-         
+        serializer.is_valid(raise_exception = True)
+        grupo = serializer.save()
+        data = {
+            'grupo':grupoSerializer(grupo).data
+        }
+        return Response(data, status=status.HTTP_201_CREATED)
 
-        return Response('creacion del grupo')
+    def retrieve(self,request,*args,**kwargs):
+        
+        #recuperar a la usuaria segun su username
+        persona = get_object_or_404(Persona,username=self.kwargs.get('pk'))
+        usuaria = get_object_or_404(Usuaria, persona = persona)
+        grupo = get_object_or_404(GrupoConfianza,usuaria = usuaria)
 
+        data = {
+            'informacion_grupo' : grupoInformacionSerializer(grupo).data
+        }
+        
+        return Response(data, status=status.HTTP_200_OK)
 
+    def destroy(self,request,*args,**kwargs):
+        #recuperar a la usuaria segun su username
+        persona = get_object_or_404(Persona,username=self.kwargs.get('pk'))
+        usuaria = get_object_or_404(Usuaria, persona = persona)
+        grupo = get_object_or_404(GrupoConfianza,usuaria = usuaria)
+
+        grupo.destroy()
+
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
 """
     @action(detail=True,methods=['put','patch'])
