@@ -26,11 +26,11 @@ class Persona(AbstractUser):
         'nombre',
         'apellido_paterno',
         'apellido_materno',
-        'username',
         'genero',
         'fecha_nacimiento',
         'is_usuaria',
-        'is_contacto_confianza'
+        'is_contacto_confianza', 
+        'username'
     ]
 
     class Meta:
@@ -99,7 +99,7 @@ class GrupoConfianza(models.Model):
     usuaria = models.OneToOneField('Usuaria', on_delete=models.CASCADE)
     nombre_grupo = models.CharField(max_length = 20)
     clave_acceso = models.CharField(max_length = 6, unique = True)
-    miembros = models.ManyToManyField(Persona)
+    miembros = models.ManyToManyField(Persona,blank=True)
 
     class Meta:
         db_table = 'GRUPO_CONFIANZA'

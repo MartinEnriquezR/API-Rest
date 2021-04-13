@@ -63,23 +63,21 @@ class personaViewSet(mixins.RetrieveModelMixin,
         return Response(data,status=status.HTTP_201_CREATED)
 
 
-class usuariaViewSet(mixins.UpdateModelMixin,
-                     viewsets.GenericViewSet):
-   
-    queryset = Usuaria.objects.all()
-    serializer_class = usuariaSerializer
+class usuariaViewSet(viewsets.GenericViewSet):
     
+    #queryset = Usuaria.objects.all()
+
     def get_permissions(self):
         if self.action in ['signup']:
             permissions = [AllowAny]
-        elif self.action in ['retrieve','borrar']:
+        elif self.action in ['informacion','borrar']:
             permissions = [IsAuthenticated,IsAccountOwner]
         else:
             permissions = [IsAuthenticated]
         return [p() for p in permissions]
 
-    @action(detail=False,methods=['POST'])
-    def signup(self,request):
+    @action(detail=False,methods=['post'])
+    def signup(self,request,*args,**kwargs):
         serializer = usuariaSignupSerializer(data = request.data)
         serializer.is_valid(raise_exception = True)
         persona, token = serializer.save()
@@ -89,24 +87,85 @@ class usuariaViewSet(mixins.UpdateModelMixin,
         }
         return Response(data,status=status.HTTP_201_CREATED)
 
+    @action(detail=False,methods=['get'])
+    def informacion(self,request,*args,**kwargs):
+        usuaria = get_object_or_404(Usuaria, persona = self.request.user)
+        data = usuariaSerializer(usuaria).data
+        return Response(data)
+
+    @action(detail=False,methods=['delete'])
+    def borrar(self,request):
+        usuaria = get_object_or_404(Usuaria, persona = self.request.user)
+        usuaria.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+    
+    @action(detail=True,methods=['put','patch'])
+    def actualizar(self,request,*args,**kwargs):
+        prueba = self.get_object()
+        partial = request.method == 'PATCH'
+        print(prueba)
+        return Response('hola')
+    
+
+class grupoViewSet( mixins.RetrieveModelMixin,
+                    mixins.UpdateModelMixin,
+                    mixins.DestroyModelMixin,
+                    viewsets.GenericViewSet):
+    
+    permission_classes = [AllowAny]
+
+    def create(self,request,*args,**kwargs):
+        print(request.data)
+        serializer = grupoCrearSerializer(data = request.data)
+        datos = serializer.is_valid(raise_exception = True)
+        usuaria = get_object_or_404(Usuaria, persona = self.request.user)
+         
+
+        return Response('creacion del grupo')
+
+
+
+"""
+    @action(detail=True,methods=['put','patch'])
+    def actualizar(self,request,*args,**kwargs):
+        persona = self.get_object()
+        print(persona)
+        usuaria = persona.usuaria
+            partial = request.methods == 'PATCH'
+            serializer = usuariaSerializer(
+                usuaria,
+                data = request.data,
+                partial = partial
+            )
+            serializer.is_valid(raise_exception=True)
+            serializer.save()
+            data = usuariaSerializer(usuaria).data
+            print(data)
+        return Response('hola')
+"""
+"""
     @action(detail=False,methods=['GET'])
     def informacion(self,request,*args,**kwargs):
         #persona = get_object_or_404(Persona,username=kwargs['pk'])
-        usuaria = Usuaria.objects.get(persona=self.request.user)
+        usuaria = get_object_or_404(Usuaria,persona=self.request.user)
         data = {
             'informacion_usuaria':usuariaSerializer(usuaria).data
         }
         return Response(data)
 
     @action(detail=False,methods=['DELETE'])
-    def borrar(self,request,*args,**kwargs):
+    def borrar(self,request):
         usuaria = Usuaria.objects.get(persona=self.request.user)
         usuaria.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
+"""
+    
 
-    @action(detail=False,methods=['UPDATE'])
-    def actualizar(self,request,*args,**kwargs):
-        pass
+    
+
+
+
+
 
 
 

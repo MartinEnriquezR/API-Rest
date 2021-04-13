@@ -12,7 +12,7 @@ router = DefaultRouter()
 
 router.register(r'persona',personaViewSet,basename='persona')
 router.register(r'usuaria',usuariaViewSet,basename='usuaria')
-
+router.register(r'grupo',grupoViewSet,basename='grupo')
 
 
 

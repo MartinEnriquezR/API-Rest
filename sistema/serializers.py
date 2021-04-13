@@ -9,6 +9,10 @@ from rest_framework import serializers
 from rest_framework.authtoken.models import Token
 from rest_framework.validators import UniqueValidator
 
+#librerias de python
+from random import seed
+from random import randint
+
 #importando los modelos
 from .models import *
 
@@ -286,46 +290,69 @@ class usuariaSignupSerializer(serializers.Serializer):
 
 """finalizado"""
 class usuariaSerializer(serializers.ModelSerializer):
+    persona = serializers.EmailField()
+    pais = PaisSerializer()
+    tipo_nariz = TipoNarizSerializer()
+    complexion = ComplexionSerializer()
+    color_ojo = ColorOjosSerializer()
+    forma_rostro = FormaRostroSerializer()
+    color_cabello = ColorCabelloSerializer()
+    color_piel = ColorPielSerializer()
+    tipo_ceja = TipoCejasSerializer()
+    textura_cabello = TexturaCabelloSerializer()
+    enfermedades = EnfermedadSerializer(many=True)
 
-     pais = PaisSerializer()
-     tipo_nariz = TipoNarizSerializer()
-     complexion = ComplexionSerializer()
-     color_ojo = ColorOjosSerializer()
-     forma_rostro = FormaRostroSerializer()
-     color_cabello = ColorCabelloSerializer()
-     color_piel = ColorPielSerializer()
-     tipo_ceja = TipoCejasSerializer()
-     textura_cabello = TexturaCabelloSerializer()
-     enfermedades = EnfermedadSerializer(many=True)
-     class Meta:
-         model = Usuaria
-         fields = (
-             'estatura',
-             'estado_civil', 
-             'escolaridad',
-             'pais',
-             'tipo_nariz',
-             'complexion',
-             'color_ojo',
-             'forma_rostro',
-             'color_cabello',
-             'color_piel',
-             'tipo_ceja',
-             'textura_cabello',
-             'enfermedades'
-         )
-
-"""finalizado"""
-class dispositivoSerializer(serializers.ModelSerializer):
-    
     class Meta:
-        model = DispositivoRastreador
+        model = Usuaria
         fields = (
-            'numero_serie',
-            'estado',
-            'pin_desactivador',
-            'usuaria'
+            'persona',
+            'estatura',
+            'estado_civil',
+            'escolaridad',
+            'pais',
+            'tipo_nariz',
+            'complexion',
+            'color_ojo',
+            'forma_rostro',
+            'color_cabello',
+            'color_piel',
+            'tipo_ceja',
+            'textura_cabello',
+            'enfermedades'
         )
+    
+"""finalizado"""
+class grupoSerializer(serializers.ModelSerializer):
+
+    class Meta:
+        model = GrupoConfianza
+        fields = (
+            'usuaria',
+            'nombre_grupo',
+            'clave_acceso',
+            'miembros'
+        )
+
+class grupoCrearSerializer(serializers.Serializer):
+    
+    nombre_grupo = serializers.CharField(max_length=20)
+ 
+
+    def validate(self,data):
+        #verificar que no se haya excedido el maximo numero de grupo permitidos
+        if numeroGrupo == 1000000:
+            raise serializers.ValidationError('El numero maximo de grupos se excedio :(')
+        
+        seed(1)
+        
+        #verificar que no exista un grupo con esta clave_acceso
+        numeroGrupo = GrupoConfianza.objects.all().count()
+        
+        #agregar la clave a data 
+        clave = randint(0,999999)
+
+        return(data)
+    
 
 
 
