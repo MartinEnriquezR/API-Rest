@@ -107,8 +107,7 @@ class usuariaViewSet(viewsets.GenericViewSet):
         return Response('hola')
     
 
-class grupoViewSet( mixins.UpdateModelMixin,
-                    viewsets.GenericViewSet):
+class grupoViewSet(viewsets.GenericViewSet):
     
     permission_classes = [AllowAny]
 
@@ -123,7 +122,7 @@ class grupoViewSet( mixins.UpdateModelMixin,
 
     def retrieve(self,request,*args,**kwargs):
         
-        #recuperar a la usuaria segun su username
+        #recuperar informacion del grupo segun su usesrname
         persona = get_object_or_404(Persona,username=self.kwargs.get('pk'))
         usuaria = get_object_or_404(Usuaria, persona = persona)
         grupo = get_object_or_404(GrupoConfianza,usuaria = usuaria)
@@ -140,9 +139,41 @@ class grupoViewSet( mixins.UpdateModelMixin,
         usuaria = get_object_or_404(Usuaria, persona = persona)
         grupo = get_object_or_404(GrupoConfianza,usuaria = usuaria)
 
-        grupo.destroy()
+        grupo.delete()
 
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+    @action(detail=True,methods=['patch'])
+    def unirme(self,request,*args,**kwargs):
+        #parametros [clave de acceso] y el [username] de la persona
+        self.request.data['username'] = self.kwargs.get('pk')
+        partial = request.method == 'PATCH'
+
+        serializer = grupoUnirSerializer(data = request.data, partial = partial )
+        serializer.is_valid(raise_exception = True)
+        grupo = serializer.save() 
+
+        data = {
+            'grupo': grupoInformacionPersonaSerializer(grupo).data
+        }
+
+        return Response(data, status=status.HTTP_200_OK)
+
+    @action(detail=True,methods=['patch'])
+    def expulsar(self,request,*args,**kwargs):
+        #[username] de la usuaria y el [username] de la persona
+        self.request.data['username_usuaria'] = self.kwargs.get('pk')
+        partial = request.method == 'PATCH'
+
+        serializer = grupoExpulsarSerializer(data = request.data, partial = partial )
+        serializer.is_valid(raise_exception = True)
+        grupo = serializer.save() 
+
+        data = {
+            'grupo': grupoInformacionSerializer(grupo).data
+        }
+
+        return Response(data, status=status.HTTP_200_OK)
 
 """
     @action(detail=True,methods=['put','patch'])
