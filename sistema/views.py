@@ -109,7 +109,12 @@ class usuariaViewSet(viewsets.GenericViewSet):
 
 class grupoViewSet(viewsets.GenericViewSet):
     
-    permission_classes = [AllowAny]
+    def get_permissions(self):
+        if self.action in ['create','retrieve','destroy','unirme','expulsar']:
+            permissions = [IsAuthenticated]
+        else:
+            permissions = [IsAuthenticated]
+        return [p() for p in permissions]
 
     def create(self,request,*args,**kwargs):
         serializer = grupoCrearSerializer(data = request.data)
@@ -175,6 +180,76 @@ class grupoViewSet(viewsets.GenericViewSet):
 
         return Response(data, status=status.HTTP_200_OK)
 
+
+class dispositivoViewSet(viewsets.GenericViewSet):
+
+    def get_permissions(self):
+        if self.action in ['asociar','desasociar','cambiarpin']:
+            permissions = [IsAuthenticated]
+        else:
+            permissions = [IsAuthenticated]
+        return [p() for p in permissions]
+
+    @action(detail=True,methods=['patch'])
+    def asociar(self,request,*args,**kwargs):
+        #parametros [numero_serie] y el [pin_desactivador] de la usuaria
+        #obtener el username de la usuaria
+        self.request.data['username'] = self.kwargs.get('pk')
+        partial = request.method == 'PATCH'
+
+        serializer = dispositivoAsociarSerializer(data = request.data)
+        serializer.is_valid(raise_exception = True)
+        dispositivo = serializer.save()  
+
+        data = {
+            'dispositivo': dispositivoInformacionSerializer(dispositivo).data
+        }
+
+        return Response(data,status = status.HTTP_200_OK)
+
+    @action(detail=True,methods=['patch'])
+    def desasociar(self,request,*args,**kwargs):
+        #datos requeridos [numero_serie] y [username] de la usuaria
+        self.request.data['username'] = self.kwargs.get('pk')
+
+        serializer = dispositivoDesasociarSerializer(data = request.data)
+        serializer.is_valid(raise_exception = True)
+        serializer.save()
+
+        return Response(status=status.HTTP_200_OK)
+
+    @action(detail=True,methods=['patch'])
+    def cambiarpin(self,request,*args,**kwargs):
+        #[username] de la usuaria y el [numero_serie] del dispositivo
+        #[pin_desactivador] nuevo pin
+        self.request.data['username'] = self.kwargs.get('pk')
+
+        serializer = dispositivoPinSerializer(data = request.data)
+        serializer.is_valid(raise_exception = True)
+        dispositivo = serializer.save()
+
+        data = {
+            'dispositivo' : dispositivoInformacionSerializer(dispositivo).data
+        }
+
+        return Response(data,status=status.HTTP_200_OK)
+        
+"""cuando la alerta se produce se envia
+    el numero de serie del dipositivo
+    latitud
+    longitud
+    fecha_hora
+"""
+class alertaViewSet(viewsets.GenericViewSet):
+    pass
+
+
+
+
+
+
+
+
 """
     @action(detail=True,methods=['put','patch'])
     def actualizar(self,request,*args,**kwargs):
@@ -209,20 +284,6 @@ class grupoViewSet(viewsets.GenericViewSet):
         usuaria.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
 """
-    
-
-    
-
-
-
-
-
-
-
-
-
-
-
 
 
 """

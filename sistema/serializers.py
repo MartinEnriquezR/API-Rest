@@ -450,7 +450,7 @@ class grupoInformacionPersonaSerializer(serializers.ModelSerializer):
         model = GrupoConfianza
         fields = ('nombre_grupo',)
 
-
+"""finalizado"""
 class grupoExpulsarSerializer(serializers.Serializer):
     username_usuaria = serializers.CharField()
     username_persona = serializers.CharField()
@@ -464,10 +464,10 @@ class grupoExpulsarSerializer(serializers.Serializer):
         try:
             usuaria = Usuaria.objects.get(persona=persona)
         except Usuaria.DoesNotExist:
-            raise serializers.ValidationError('Usuario invalido')
+            raise serializers.ValidationError('Username invalido')
         try:
             grupo = GrupoConfianza.objects.get(usuaria=usuaria)
-        except: GrupoConfianza.DoesNotExist:
+        except GrupoConfianza.DoesNotExist:
             raise serializers.ValidationError('La usuaria no tiene un grupo de confianza')
 
         #saber si el contacto de confianza existe
@@ -476,25 +476,58 @@ class grupoExpulsarSerializer(serializers.Serializer):
         except Persona.DoesNotExist:
             raise serializers.ValidationError('Username del contacto de confianza incorrecto')
         #saber si en grupo tiene a este miembro
-        
+        try:
+            GrupoConfianza.objects.get(usuaria= usuaria,miembros=persona)
+        except GrupoConfianza.DoesNotExist:
+            raise serializers.ValidationError('Este contacto de confianza no es miembro de este grupo')
 
         return data
 
-
     def create(self,data):
-        pass
+        #instancia de la usuaria
+        persona = Persona.objects.get(username =data['username_usuaria'])
+        usuaria = Usuaria.objects.get(persona=persona)
+        #grupo de la usuaria
+        grupo = GrupoConfianza.objects.get(usuaria=usuaria)
 
+        #instancia de la persona que se va a expulsar
+        miembro = Persona.objects.get(username =data['username_persona'])
+       
+        #removiendo al miembro
+        grupo.miembros.remove(miembro)
+        grupo.save()
 
+        return grupo
+        
+"""finalizado"""
+class dispositivoInformacionSerializer(serializers.ModelSerializer):
 
+    class Meta:
+        model = DispositivoRastreador
+        fields = (
+            'numero_serie',
+            'estado',
+            'pin_desactivador'
+        )
 
-"""
+"""finalizado"""
 class dispositivoAsociarSerializer(serializers.Serializer):
+    username = serializers.CharField()
     numero_serie = serializers.IntegerField()
     pin_desactivador = serializers.IntegerField()
-    estado=serializers.CharField(max_length=20)
-    email = serializers.EmailField()
 
-    def validate(self, data):
+    
+    def validate(self,data):
+        #validar que la usuaria este registrada
+        try:
+            persona = Persona.objects.get(username =data['username'])
+        except Persona.DoesNotExist:
+            raise serializers.ValidationError('Este username no corresponde a ninguna persona')
+        try:
+            usuaria = Usuaria.objects.get(persona = persona)
+        except Usuaria.DoesNotExist:
+            raise serializers.ValidationError('No existe ninguna usuaria con este username')
+
         #buscar si el dispositivo se encuentra dentro de la base de datos
         try:
             registrado = DispositivoRastreador.objects.get(numero_serie = data['numero_serie'])
@@ -503,17 +536,114 @@ class dispositivoAsociarSerializer(serializers.Serializer):
                 raise serializers.ValidationError('Numero de serie incorrecto')
         except DispositivoRastreador.DoesNotExist:
             raise serializers.ValidationError('Numero de serie incorrecto.')
-        return(data)
 
+        return data
 
     def create(self,data):
-        dispositivo = DispositivoRastreador.objects.get(numero_serie=data['numero_serie'])
-        dispositivo.estado = data['estado']
-        dispositivo.pin_desactivador = data['pin_desactivador']
-        persona = Persona.objects.get(email=data['email'])
+        #instancia de la usuaria
+        persona = Persona.objects.get(username =data['username'])
         usuaria = Usuaria.objects.get(persona=persona)
-        dispositivo.usuaria = usuaria 
+        
+        #instancia del dispositivo rastreador
+        dispositivo = DispositivoRastreador.objects.get(numero_serie = data['numero_serie'])
+
+        #modificar el registro del dispositivo
+        dispositivo.usuaria = usuaria
+        dispositivo.pin_desactivador = data['pin_desactivador']
+        dispositivo.estado = 'Desactivado'
         dispositivo.save()
 
         return dispositivo
-"""
+
+"""finalizado"""
+class dispositivoDesasociarSerializer(serializers.Serializer):
+    username = serializers.CharField()
+    numero_serie = serializers.IntegerField()
+
+    def validate(self, data):
+        #saber si la usuaria existe
+        try:
+            persona = Persona.objects.get(username =data['username'])
+        except Persona.DoesNotExist:
+            raise serializers.ValidationError('Username invalido')
+
+        try:
+            usuaria = Usuaria.objects.get(persona=persona)
+        except Usuaria.DoesNotExist:
+            raise serializers.ValidationError('Username invalido')
+
+        #encontrar si la usuaria tiene este dispositivo asociado
+        try:
+            dispositivo = DispositivoRastreador.objects.get(
+                numero_serie = data['numero_serie'], 
+                usuaria= usuaria
+            )    
+        except DispositivoRastreador.DoesNotExist:
+            raise serializers.ValidationError('Este dispositivo no existe')
+
+        return data
+
+    def create(self,data):
+        #instancia de la usuaria
+        persona = Persona.objects.get(username =data['username'])
+        usuaria = Usuaria.objects.get(persona=persona)
+
+        #dispositivo
+        dispositivo = DispositivoRastreador.objects.get(
+            numero_serie = data['numero_serie'],
+            usuaria = usuaria
+        )
+
+        dispositivo.estado = None
+        dispositivo.pin_desactivador = None
+        dispositivo.usuaria = None
+
+        dispositivo.save()
+
+        return dispositivo
+
+"""finalizado"""
+class dispositivoPinSerializer(serializers.Serializer):
+    username = serializers.CharField()
+    numero_serie = serializers.IntegerField()
+    pin_desactivador = serializers.IntegerField()
+
+    def validate(self,data):
+        #comprobar si existe la usuaria
+        try:
+            persona = Persona.objects.get(username =data['username'])
+        except Persona.DoesNotExist:
+            raise serializers.ValidationError('Username incorrecto')
+        try:
+            usuaria = Usuaria.objects.get(persona=persona)
+        except Usuaria.DoesNotExist:
+            raise serializers.ValidationError('Username incorrecto')
+            
+        #encontrar el dispositivo
+        try:
+            DispositivoRastreador.objects.get(
+                numero_serie=data['numero_serie'],
+                usuaria = usuaria
+            )
+        except DispositivoRastreador.DoesNotExist:
+            raise serializers.ValidationError('Numero de serie incorrecto')
+
+        return data
+
+    def create(self,data):
+        #instancia de la usuaria
+        persona = Persona.objects.get(username =data['username'])
+        usuaria = Usuaria.objects.get(persona=persona)
+
+        #dispositivo de la usuaria
+        dispositivo = DispositivoRastreador.objects.get(
+            numero_serie=data['numero_serie'],
+            usuaria = usuaria
+        )
+
+        dispositivo.pin_desactivador = data['pin_desactivador']
+        dispositivo.save()
+
+        return dispositivo
+
+
