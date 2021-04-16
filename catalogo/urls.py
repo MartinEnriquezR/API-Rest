@@ -23,6 +23,7 @@ router.register(r'ubicaciones-corporales', ubicacionCorporalViewSet, basename = 
 router.register(r'circunstancias', circunstanciaViewSet, basename = 'circunstancias')
 router.register(r'lazos', lazoViewSet, basename = 'lazos')
 router.register(r'senas-particulares', senasParticularesViewSet, basename = 'senas-particulares')
+router.register(r'estados-civiles',estadoCivilViewSet, basename = 'estados-civiles')
 
 urlpatterns = [
     path('',include(router.urls))

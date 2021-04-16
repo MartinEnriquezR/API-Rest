@@ -92,3 +92,9 @@ with open(path) as csvfile:
     campos = csv.reader(csvfile,delimiter=',')
     for row in campos:
         UbicacionCorporal.objects.create(nombre_ubicacion_corporal=row[0])
+
+path = 'ModelosCSV/EstadoCivil.csv'
+with open(path) as csvfile:
+    campos = csv.reader(csvfile,delimiter=',')
+    for row in campos:
+        EstadoCivil.objects.create(estado_civil=row[0])

@@ -84,3 +84,9 @@ class SenasParticulares(models.Model):
 
     class Meta:
         db_table = 'SENAS_PARTICULARES'
+
+class EstadoCivil(models.Model):
+    estado_civil = models.CharField(max_length=30)
+
+    class Meta:
+        db_table = 'ESTADO_CIVIL'

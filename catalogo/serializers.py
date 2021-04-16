@@ -79,3 +79,8 @@ class SenasParticularesSerializer(serializers.ModelSerializer):
     class Meta:
         model = SenasParticulares
         fields = ('nombre_sena_particular',)
+
+class EstadoCivilSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = EstadoCivil
+        fields = ('estado_civil',)

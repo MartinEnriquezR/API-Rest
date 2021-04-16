@@ -136,7 +136,7 @@ class usuariaSignupSerializer(serializers.Serializer):
     is_contacto_confianza = serializers.BooleanField()
     #campos de la usuaria  
     estatura = serializers.IntegerField()
-    estado_civil = serializers.CharField(max_length=20)
+    estado_civil = serializers.CharField()
     escolaridad = serializers.CharField(max_length=30)
     #llaves foraneas
     nacionalidad = serializers.CharField()
@@ -162,7 +162,7 @@ class usuariaSignupSerializer(serializers.Serializer):
         today = date.today()
         diferenciaDias = today - fecha_nacimiento
 
-        #validar que las contraseñas, deben ser iguales
+        #validar las contraseñas, deben ser iguales
         if passwd != passwdConf:
             raise serializers.ValidationError('las contraseñas ingresadas no coinciden')
         #valida que la contraseña no sea comun
@@ -224,6 +224,11 @@ class usuariaSignupSerializer(serializers.Serializer):
         except TexturaCabello.DoesNotExist:
             raise serializers.ValidationError('Este tipo de cabello no se encuentran registrado')
 
+        try:
+            EstadoCivil.objects.get(estado_civil=data['estado_civil'])
+        except EstadoCivil.DoesNotExist:
+            raise serializers.ValidationError('Este tipo de estado_civil no se encuentra registrado')
+
         return(data)
   
 
@@ -250,7 +255,6 @@ class usuariaSignupSerializer(serializers.Serializer):
         #claves de los datos de la usuaria
         usuariaKeys = [
             'estatura',
-            'estado_civil',
             'escolaridad'
         ]
         #datos de la usuaria
@@ -263,6 +267,7 @@ class usuariaSignupSerializer(serializers.Serializer):
             #datos de la usuaria 
             **dataUsuaria,
             #llaves foraneas de la usuaria
+            estado_civil=EstadoCivil.objects.get(estado_civil=data['estado_civil']),
             pais=Pais.objects.get(nacionalidad=data['nacionalidad']),
             tipo_nariz=TipoNariz.objects.get(tipo_nariz=data['tipo_nariz']),
             complexion=Complexion.objects.get(complexion=data['complexion']),
@@ -300,6 +305,7 @@ class usuariaSerializer(serializers.ModelSerializer):
     color_piel = ColorPielSerializer()
     tipo_ceja = TipoCejasSerializer()
     textura_cabello = TexturaCabelloSerializer()
+    estado_civil = EstadoCivilSerializer()
     enfermedades = EnfermedadSerializer(many=True)
 
     class Meta:
@@ -671,14 +677,29 @@ class alertaPublicarSerializer(serializers.Serializer):
         dispositivo = DispositivoRastreador.objects.get(numero_serie = data['numero_serie'])
         usuaria = dispositivo.usuaria
 
-        #activar la alerta producida
+        #cambiar el estado de la alerta
         dispositivo.estado = 'Activado'
         dispositivo.save()
 
         #grupo que tiene la usuaria
         grupo = GrupoConfianza.objects.get(usuaria=usuaria)
 
-        #crear o devolver la alerta con el nombre
+        #crear la alerta o en su caso devolverla segun su nombre
+        obj, created = Alerta.objects.get_or_create(
+            grupo_confianza= grupo,
+            nombre_alerta= data['nombre_alerta']
+        )
+
+        #salvar la ubicacion
+        alerta = Ubicacion.objects.create(
+            alerta= obj,
+            latitud= data['latitud'],
+            longitud= data['longitud'],
+            fecha_hora= data['fecha_hora'],
+        )
+        alerta.save()
+
+        
 
 
 

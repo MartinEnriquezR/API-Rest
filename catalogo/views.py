@@ -93,4 +93,8 @@ class senasParticularesViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = SenasParticulares.objects.all()
     serializer_class = SenasParticularesSerializer
 
-
+class estadoCivilViewSet(viewsets.ReadOnlyModelViewSet):
+    """un viewset para listar los estados civiles de la usuaria"""
+    permission_classes = [AllowAny]
+    queryset = EstadoCivil.objects.all()
+    serializer_class = EstadoCivilSerializer

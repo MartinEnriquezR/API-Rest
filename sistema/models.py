@@ -42,7 +42,7 @@ class Usuaria(models.Model):
     persona = models.OneToOneField(Persona, on_delete = models.CASCADE)
     #datos de complemento
     estatura = models.PositiveIntegerField()
-    estado_civil = models.CharField(max_length=20)
+    estado_civil = models.ForeignKey(EstadoCivil, models.DO_NOTHING)
     escolaridad = models.CharField(max_length=30)
     #llaves foraneas
     pais = models.ForeignKey(Pais, models.DO_NOTHING)
@@ -118,7 +118,7 @@ class Alerta(models.Model):
     class Meta:
         db_table = 'ALERTA'
 
-    REQUIRED_FIELDS=['grupo_confianza']
+    REQUIRED_FIELDS=['grupo_confianza','nombre_alerta']
 
 #cuando la alerta se borra, el cuestionario se debe de borrar
 #cuando una circunstancia se borre no se debe de hacer nada

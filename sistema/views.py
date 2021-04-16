@@ -274,6 +274,9 @@ class alertaViewSet(viewsets.GenericViewSet):
 
 
 
+
+
+
 """
     @action(detail=True,methods=['put','patch'])
     def actualizar(self,request,*args,**kwargs):
