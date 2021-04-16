@@ -235,13 +235,37 @@ class dispositivoViewSet(viewsets.GenericViewSet):
         return Response(data,status=status.HTTP_200_OK)
         
 """cuando la alerta se produce se envia
-    el numero de serie del dipositivo
-    latitud
-    longitud
-    fecha_hora
+    [numero_serie] dispositivo rastreador
+    [nombre_alerta]
+    [latitud]
+    [longitud]
+    [fecha_hora]
 """
 class alertaViewSet(viewsets.GenericViewSet):
-    pass
+    
+    permission_classes = [AllowAny]
+
+    @action(detail=False, methods=['post'])
+    def publicar(self,request,*args,**kwargs):
+
+        serializer = alertaPublicarSerializer(data = request.data)
+        serializer.is_valid(raise_exception = True)
+        serializer.save()
+
+        return Response(status=status.HTTP_200_OK)
+
+
+    """cuando se quiera  checar la desactivacion desactivar la alerta se debe enviar solo
+        el [numero_serie] del dispositivo
+    """
+    @action(detail=False, methods=['get'])
+    def desactivacion(self,request,*args,**kwargs):
+        
+        serializer = alertaDesactivacionSerializer(data = request.data)
+        serializer.is_valid(raise_exception = True)
+        desactivacion = serializer.save()
+
+        return Response(desactivacion, status = status.HTTP_200_OK)
 
 
 

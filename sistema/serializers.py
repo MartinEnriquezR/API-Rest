@@ -647,3 +647,40 @@ class dispositivoPinSerializer(serializers.Serializer):
         return dispositivo
 
 
+class alertaPublicarSerializer(serializers.Serializer):
+    numero_serie = serializers.IntegerField()
+    nombre_alerta = serializers.CharField(max_length=30)
+    latitud = serializers.DecimalField(max_digits=8, decimal_places=6)
+    longitud = serializers.DecimalField(max_digits=9, decimal_places=6)
+    fecha_hora = serializers.DateTimeField()
+
+    def validate(self,data):
+        #validar que el dipositivo exista y tenga a una usuaria enlazada
+        try:
+            dispositivo = DispositivoRastreador.objects.get(numero_serie = data['numero_serie'])
+            #saber si tiene una usuaria registrada
+            if dipositivo.usuaria:
+                raise serializers.ValidationError('Numero de serie incorrecto')
+        except DispositivoRastreador.DoesNotExist:
+            raise serializers.ValidationError('Numero de serie incorrecto')
+
+        return data
+
+    def create(self,data):
+        #usuaria que tiene el dispositivo
+        dispositivo = DispositivoRastreador.objects.get(numero_serie = data['numero_serie'])
+        usuaria = dispositivo.usuaria
+
+        #activar la alerta producida
+        dispositivo.estado = 'Activado'
+        dispositivo.save()
+
+        #grupo que tiene la usuaria
+        grupo = GrupoConfianza.objects.get(usuaria=usuaria)
+
+        #crear o devolver la alerta con el nombre
+
+
+
+class alertaDesactivacionSerializer(serializers.Serializer):
+    pass

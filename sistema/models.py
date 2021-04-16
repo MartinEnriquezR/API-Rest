@@ -113,6 +113,7 @@ class GrupoConfianza(models.Model):
 #cuando el grupo se borra, las alertas se deben de borrar
 class Alerta(models.Model):
     grupo_confianza = models.ForeignKey(GrupoConfianza, on_delete=models.CASCADE)
+    nombre_alerta = models.CharField(max_length=30)
 
     class Meta:
         db_table = 'ALERTA'
