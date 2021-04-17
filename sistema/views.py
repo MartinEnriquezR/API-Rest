@@ -91,7 +91,7 @@ class usuariaViewSet(viewsets.GenericViewSet):
     def informacion(self,request,*args,**kwargs):
         usuaria = get_object_or_404(Usuaria, persona = self.request.user)
         data = usuariaSerializer(usuaria).data
-        return Response(data)
+        return Response(data,status=status.HTTP_200_OK)
 
     @action(detail=False,methods=['delete'])
     def borrar(self,request):
@@ -110,7 +110,7 @@ class usuariaViewSet(viewsets.GenericViewSet):
 class grupoViewSet(viewsets.GenericViewSet):
     
     def get_permissions(self):
-        if self.action in ['create','retrieve','destroy','unirme','expulsar']:
+        if self.action in ['create','retrieve','destroy','unirme','expulsar','misGrupos']:
             permissions = [IsAuthenticated]
         else:
             permissions = [IsAuthenticated]
@@ -179,6 +179,37 @@ class grupoViewSet(viewsets.GenericViewSet):
         }
 
         return Response(data, status=status.HTTP_200_OK)
+
+    @action(detail=True,methods=['patch'])
+    def nombre(self,request,*args,**kwargs):
+        #parametro el [username] de la usuaria y el nuevo [nombre_grupo]
+        self.request.data['username'] = self.kwargs.get('pk')
+        serializer = grupoNombreSerializer(data = request.data)
+        serializer.is_valid(raise_exception = True)
+        grupo = serializer.save()
+
+        data = {
+            'informacion_grupo' : grupoInformacionSerializer(grupo).data
+        }
+        
+        return Response(data, status=status.HTTP_200_OK)
+
+    @action(detail=False,methods=['get'])
+    def misGrupos(self,request,*args,**kwargs):
+        #listar los grupos donde se encuentre cualquier usuario por medio de su [username]
+        #traerlos con informacion basica del grupo y de las dueñas del grupo
+        
+        #instancia de la persona
+        persona = get_object_or_404(Persona,username=request.data['username'])
+
+        #grupo o grupos del usuario
+        try:
+            grupos = GrupoConfianza.objects.get(miembros=persona)
+            data = misGruposSerializer(grupos).data
+        except GrupoConfianza.DoesNotExist:
+            pass
+        
+        return Response(data)
 
 
 class dispositivoViewSet(viewsets.GenericViewSet):

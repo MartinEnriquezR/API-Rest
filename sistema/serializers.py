@@ -109,6 +109,8 @@ class personaSignupSerializer(serializers.Serializer):
         token, created = Token.objects.get_or_create(user=self.context['persona'])
         return persona, token.key
 
+
+
 """finalizado"""
 class usuariaSignupSerializer(serializers.Serializer):
     
@@ -326,7 +328,10 @@ class usuariaSerializer(serializers.ModelSerializer):
             'textura_cabello',
             'enfermedades'
         )
-    
+
+
+
+
 """finalizado"""
 class grupoSerializer(serializers.ModelSerializer):
 
@@ -504,7 +509,60 @@ class grupoExpulsarSerializer(serializers.Serializer):
         grupo.save()
 
         return grupo
+
+"""finalizado"""
+class grupoNombreSerializer(serializers.Serializer):
+    username = serializers.CharField()
+    nombre_grupo = serializers.CharField(max_length=20)
+
+    def validate(self,data):
+        #verificar que la usuaria exista segun el username proporcionado
+        try:
+            persona = Persona.objects.get(username =data['username'])
+        except Persona.DoesNotExist:
+            raise serializers.ValidationError('Username invalido')
+        try:
+            usuaria = Usuaria.objects.get(persona = persona)
+        except Usuaria.DoesNotExist:
+            raise serializers.ValidationError('Username invalido')
+
+        #verificar que el grupo exista
+        try:
+            grupo = GrupoConfianza.objects.get(usuaria=usuaria)
+        except GrupoConfianza.DoesNotExist:
+            raise serializers.ValidationError('Esta usuaria no tiene ningun grupo')
         
+        #verificar que el nombre sea diferente
+        if grupo.nombre_grupo == data['nombre_grupo']:
+            raise serializers.ValidationError('El nuevo nombre debe de ser diferente')
+
+        return data
+
+    def create(self,data):
+        #instancia de la usuaria
+        persona = Persona.objects.get(username =data['username'])
+        usuaria = Usuaria.objects.get(persona=persona)
+
+        #grupo de la usuaria
+        grupo = GrupoConfianza.objects.get(usuaria = usuaria)
+
+        #nuevo nombre del grupo asignado por la usuaria
+        grupo.nombre_grupo = data['nombre_grupo']
+        grupo.save()
+
+        return grupo
+
+""""""
+class misGruposSerializer(serializers.ModelSerializer):
+
+    class Meta:
+        model = GrupoConfianza
+        fields = (
+            #'usuaria',
+            'nombre_grupo',
+        )
+
+
 """finalizado"""
 class dispositivoInformacionSerializer(serializers.ModelSerializer):
 
@@ -653,6 +711,8 @@ class dispositivoPinSerializer(serializers.Serializer):
         return dispositivo
 
 
+
+
 class alertaPublicarSerializer(serializers.Serializer):
     numero_serie = serializers.IntegerField()
     nombre_alerta = serializers.CharField(max_length=30)
@@ -698,10 +758,6 @@ class alertaPublicarSerializer(serializers.Serializer):
             fecha_hora= data['fecha_hora'],
         )
         alerta.save()
-
-        
-
-
 
 class alertaDesactivacionSerializer(serializers.Serializer):
     pass
