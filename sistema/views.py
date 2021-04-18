@@ -19,6 +19,7 @@ from .models import *
 from .permissions import *
 
 
+
 class personaViewSet(mixins.RetrieveModelMixin,
                      mixins.UpdateModelMixin,
                      mixins.DestroyModelMixin,
@@ -63,6 +64,7 @@ class personaViewSet(mixins.RetrieveModelMixin,
         return Response(data,status=status.HTTP_201_CREATED)
 
 
+
 class usuariaViewSet(viewsets.GenericViewSet):
     
     #queryset = Usuaria.objects.all()
@@ -105,7 +107,8 @@ class usuariaViewSet(viewsets.GenericViewSet):
         partial = request.method == 'PATCH'
         print(prueba)
         return Response('hola')
-    
+
+
 
 class grupoViewSet(viewsets.GenericViewSet):
     
@@ -150,11 +153,11 @@ class grupoViewSet(viewsets.GenericViewSet):
 
     @action(detail=True,methods=['patch'])
     def unirme(self,request,*args,**kwargs):
+        
         #parametros [clave de acceso] y el [username] de la persona
         self.request.data['username'] = self.kwargs.get('pk')
-        partial = request.method == 'PATCH'
-
-        serializer = grupoUnirSerializer(data = request.data, partial = partial )
+        
+        serializer = grupoUnirSerializer(data = request.data)
         serializer.is_valid(raise_exception = True)
         grupo = serializer.save() 
 
@@ -196,26 +199,44 @@ class grupoViewSet(viewsets.GenericViewSet):
 
     @action(detail=False,methods=['get'])
     def misGrupos(self,request,*args,**kwargs):
-        #listar los grupos donde se encuentre cualquier usuario por medio de su [username]
-        #traerlos con informacion basica del grupo y de las dueñas del grupo
         
-        #instancia de la persona
-        persona = get_object_or_404(Persona,username=request.data['username'])
-
-        #grupo o grupos del usuario
+        #obtener a la persona 
+        persona = get_object_or_404(Persona,email=self.request.user)
+        
         try:
-            grupos = GrupoConfianza.objects.get(miembros=persona)
-            data = misGruposSerializer(grupos).data
+            grupos = GrupoConfianza.objects.filter(miembros=persona)
+            serializer = misGruposSerializer(grupos,many=True)
+            data = serializer.data
+            estado = status.HTTP_200_OK
+            
         except GrupoConfianza.DoesNotExist:
-            pass
+            data = None
+            estado = status.HTTP_404_NOT_FOUND
+
+        return Response(data, status = estado)
+
+    @action(detail=False,methods=['patch'],url_path='salir-grupo')
+    def salirGrupo(self,request,*args,**kwargs):
+        #obtener la instancia de la persona que saldra del grupo
+        contacto = get_object_or_404(Persona,email=self.request.user)
         
-        return Response(data)
+        #obtener a la admin del grupo
+        admin = get_object_or_404(Persona,username=request.data['username'])
+        usuaria = get_object_or_404(Usuaria,persona=admin)
+        grupo = get_object_or_404(GrupoConfianza,usuaria = usuaria)
+
+        #salir del grupo
+        grupo.miembros.remove(contacto)
+        grupo.save()
+
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
 
 
 class dispositivoViewSet(viewsets.GenericViewSet):
 
     def get_permissions(self):
-        if self.action in ['asociar','desasociar','cambiarpin']:
+        if self.action in ['asociar','desasociar','cambiarpin','misDispositivos']:
             permissions = [IsAuthenticated]
         else:
             permissions = [IsAuthenticated]
@@ -264,7 +285,29 @@ class dispositivoViewSet(viewsets.GenericViewSet):
         }
 
         return Response(data,status=status.HTTP_200_OK)
+
+    @action(detail=False,methods=['get'])
+    def misDispositivos(self,request,*args,**kwargs):
+        #instancia de la persona
+        persona = get_object_or_404(Persona,email=self.request.user)
+        usuaria = get_object_or_404(Usuaria,persona=persona)
         
+        #dispositivos de la usuaria
+        try:
+            dispositivos = DispositivoRastreador.objects.filter(usuaria=usuaria)
+            #serializacion
+            serializer = dispositivoInformacionSerializer(dispositivos,many=True)
+            data = serializer.data
+            estado = status.HTTP_200_OK
+
+        except DispositivoRastreador.DoesNotExist:
+            data = None
+            estado = status.HTTP_404_NOT_FOUND
+        
+        return Response(data)
+
+
+
 """cuando la alerta se produce se envia
     [numero_serie] dispositivo rastreador
     [nombre_alerta]

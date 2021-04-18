@@ -23,7 +23,7 @@ from catalogo.models import *
 from catalogo.serializers import *
 
 
-"""finalizado"""
+"""Informacion de la persona"""
 class personaSerializer(serializers.ModelSerializer):
     #modelo serializado 
     class Meta:
@@ -40,7 +40,7 @@ class personaSerializer(serializers.ModelSerializer):
             'is_contacto_confianza'
         )
 
-"""finalizado"""
+"""Serializer para el login de cualquier persona en el sistema"""
 class personaLoginSerializer(serializers.Serializer):
     #definimos los campos que seran validados y sus limitantes
     email=serializers.EmailField()
@@ -64,7 +64,7 @@ class personaLoginSerializer(serializers.Serializer):
         token, created = Token.objects.get_or_create(user=self.context['persona'])
         return self.context['persona'], token.key
 
-"""finalizado"""
+"""Serializer para el signup de una persona"""
 class personaSignupSerializer(serializers.Serializer):
     #campos que debemos de aceptar 
     email=serializers.EmailField(
@@ -111,7 +111,7 @@ class personaSignupSerializer(serializers.Serializer):
 
 
 
-"""finalizado"""
+"""Serializer para que una usuaria que se regustra dentro del sistema"""
 class usuariaSignupSerializer(serializers.Serializer):
     
     #datos de la persona
@@ -295,7 +295,7 @@ class usuariaSignupSerializer(serializers.Serializer):
         token, created = Token.objects.get_or_create(user=self.context['persona'])
         return persona, token.key
 
-"""finalizado"""
+"""Informacion de la usuaria"""
 class usuariaSerializer(serializers.ModelSerializer):
     persona = serializers.EmailField()
     pais = PaisSerializer()
@@ -332,7 +332,7 @@ class usuariaSerializer(serializers.ModelSerializer):
 
 
 
-"""finalizado"""
+"""Nombre y clave de acceso de un grupo de confianza"""
 class grupoSerializer(serializers.ModelSerializer):
 
     class Meta:
@@ -342,7 +342,7 @@ class grupoSerializer(serializers.ModelSerializer):
             'clave_acceso'
         )
 
-"""finalizado"""
+"""Creacion del grupo de confianza"""
 class grupoCrearSerializer(serializers.Serializer):
     #validar el tamaño del nombre del grupo
     username = serializers.CharField()
@@ -399,7 +399,7 @@ class grupoCrearSerializer(serializers.Serializer):
 
         return grupo
 
-"""finalizado"""
+"""Informacion de los miembros"""
 class MiembroSerializer(serializers.ModelSerializer):
     class Meta:
         model = Persona
@@ -410,7 +410,7 @@ class MiembroSerializer(serializers.ModelSerializer):
             'apellido_materno'
         )
 
-"""finalizado"""
+"""Informacion bascia del grupo de confianza, solo lo puede visualizar la usuaria"""
 class grupoInformacionSerializer(serializers.ModelSerializer):
     miembros = MiembroSerializer(many=True)
 
@@ -422,24 +422,37 @@ class grupoInformacionSerializer(serializers.ModelSerializer):
             'miembros'
         )
 
-"""finalizado"""
+"""Unirse al grupo de confianza"""
 class grupoUnirSerializer(serializers.Serializer):
+    #username de la persona que se quiere unir
     username = serializers.CharField()
+    #clade de acceso del grupo al que se va a unir
     clave_acceso = serializers.CharField()
-
 
     def validate(self,data):
         #validar que el grupo asociado a esta clave de acceso exista
         try:
-            GrupoConfianza.objects.get(clave_acceso=data['clave_acceso'])
+            grupo = GrupoConfianza.objects.get(clave_acceso=data['clave_acceso'])
         except GrupoConfianza.DoesNotExist:
             raise serializers.ValidationError('No existe este grupo, verifica tu clave de acceso')
 
+        #validar que el limite de usuarios dentro del grupo no se haya excedido
+        totalMiembros = grupo.miembros.count()
+        if totalMiembros == 5:
+            raise serializers.ValidationError('No se pueden agreagar mas miembros a este grupo')
+
         #validar que el usuario exista
         try:
-            Persona.objects.get(username=data['username'])
+            persona = Persona.objects.get(username=data['username'])
         except Persona.DoesNotExist:
             raise serializers.ValidationError('El usuario no existe')
+
+        #validar que no se vuelva a unir a un grupo esta persona
+        try:
+            GrupoConfianza.objects.get(clave_acceso=data['clave_acceso'],miembros=persona)
+            raise serializers.ValidationError('Ya formas parte de este grupo de confianza')
+        except GrupoConfianza.DoesNotExist:
+            pass
 
         return(data)
 
@@ -455,13 +468,13 @@ class grupoUnirSerializer(serializers.Serializer):
 
         return grupo
 
-"""finalizado"""
+"""Informacion que puede visualizar el contacto de confianza sobre el grupo al momento de unirse"""
 class grupoInformacionPersonaSerializer(serializers.ModelSerializer):
     class Meta:
         model = GrupoConfianza
         fields = ('nombre_grupo',)
 
-"""finalizado"""
+"""Serializer para expulsar a una persona de un grupo de confianza"""
 class grupoExpulsarSerializer(serializers.Serializer):
     username_usuaria = serializers.CharField()
     username_persona = serializers.CharField()
@@ -510,7 +523,7 @@ class grupoExpulsarSerializer(serializers.Serializer):
 
         return grupo
 
-"""finalizado"""
+"""Serializer para cambiar el nombre de un grupo"""
 class grupoNombreSerializer(serializers.Serializer):
     username = serializers.CharField()
     nombre_grupo = serializers.CharField(max_length=20)
@@ -552,18 +565,38 @@ class grupoNombreSerializer(serializers.Serializer):
 
         return grupo
 
-""""""
-class misGruposSerializer(serializers.ModelSerializer):
+"""Serializer para que el contacto vea informacion basica de la usuaria """
+class personaInformacionBasicaSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Persona
+        fields = (
+            'username',
+            'nombre',
+            'apellido_paterno',
+        )
 
+"""Serializer para que el contacto vea informacion basica de la usuaria"""
+class usuariaGrupoSerializer(serializers.ModelSerializer):
+    persona = personaInformacionBasicaSerializer()
+    class Meta:
+        model = Usuaria
+        fields = (
+            'persona',
+        )
+
+"""Serializer para ver los grupos a los que una persona pertenece"""
+class misGruposSerializer(serializers.ModelSerializer):
+    usuaria = usuariaGrupoSerializer()
     class Meta:
         model = GrupoConfianza
         fields = (
-            #'usuaria',
+            'usuaria',
             'nombre_grupo',
         )
 
 
-"""finalizado"""
+
+"""Serializer para ver informacion basica de un dispositivo"""
 class dispositivoInformacionSerializer(serializers.ModelSerializer):
 
     class Meta:
@@ -574,7 +607,7 @@ class dispositivoInformacionSerializer(serializers.ModelSerializer):
             'pin_desactivador'
         )
 
-"""finalizado"""
+"""Serializer para asociar a una usuaria con un dispositivo"""
 class dispositivoAsociarSerializer(serializers.Serializer):
     username = serializers.CharField()
     numero_serie = serializers.IntegerField()
@@ -619,7 +652,7 @@ class dispositivoAsociarSerializer(serializers.Serializer):
 
         return dispositivo
 
-"""finalizado"""
+"""Serializer para desasociar el dispositivo de una usuaria"""
 class dispositivoDesasociarSerializer(serializers.Serializer):
     username = serializers.CharField()
     numero_serie = serializers.IntegerField()
@@ -666,7 +699,7 @@ class dispositivoDesasociarSerializer(serializers.Serializer):
 
         return dispositivo
 
-"""finalizado"""
+"""Serializer para cambiar el pin desactivador del dispositivo de una usuaria"""
 class dispositivoPinSerializer(serializers.Serializer):
     username = serializers.CharField()
     numero_serie = serializers.IntegerField()
@@ -712,7 +745,7 @@ class dispositivoPinSerializer(serializers.Serializer):
 
 
 
-
+"""Serializer para publicar una alerta desde el dispositivo"""
 class alertaPublicarSerializer(serializers.Serializer):
     numero_serie = serializers.IntegerField()
     nombre_alerta = serializers.CharField(max_length=30)
@@ -725,7 +758,7 @@ class alertaPublicarSerializer(serializers.Serializer):
         try:
             dispositivo = DispositivoRastreador.objects.get(numero_serie = data['numero_serie'])
             #saber si tiene una usuaria registrada
-            if dipositivo.usuaria:
+            if dispositivo.usuaria:
                 raise serializers.ValidationError('Numero de serie incorrecto')
         except DispositivoRastreador.DoesNotExist:
             raise serializers.ValidationError('Numero de serie incorrecto')
@@ -759,5 +792,10 @@ class alertaPublicarSerializer(serializers.Serializer):
         )
         alerta.save()
 
+
+
+
+"""
 class alertaDesactivacionSerializer(serializers.Serializer):
     pass
+"""
