@@ -65,11 +65,11 @@ class Usuaria(models.Model):
         'complexion,'
         'color_ojo',
         'forma_rostro',
-        'forma_rostro',
-        'id_color_cabello',
-        'id_color_piel',
-        'id_tipo_ceja',
-        'id_textura_cabello'
+        'color_cabello',
+        'color_piel',
+        'tipo_ceja',
+        'textura_cabello',
+        'enfermedades'
     ]
 
     class Meta:
@@ -95,14 +95,15 @@ class DispositivoRastreador(models.Model):
     ]
 
 #cuando la usuaria se de de baja del sistema su grupo de confianza tambien se borra
-class GrupoConfianza(models.Model):
+class Grupo(models.Model):
+    #quien administra el grupo
     usuaria = models.OneToOneField('Usuaria', on_delete=models.CASCADE)
-    nombre_grupo = models.CharField(max_length = 20)
+    nombre = models.CharField(max_length = 20)
     clave_acceso = models.CharField(max_length = 6, unique = True)
-    miembros = models.ManyToManyField(Persona,blank=True)
+    integrantes = models.ManyToManyField(Persona, through='Miembros', blank=True)
 
     class Meta:
-        db_table = 'GRUPO_CONFIANZA'
+        db_table = 'GRUPO'
     
     REQUIRED_FIELDS=[
         'nombre_grupo',
@@ -110,43 +111,30 @@ class GrupoConfianza(models.Model):
         'usuaria'
     ]
 
+#tabla con los miembros que se añaden al grupo
+class Miembros(models.Model):
+    grupo = models.ForeignKey(Grupo, on_delete = models.CASCADE)
+    persona = models.ForeignKey(Persona,on_delete=models.CASCADE)
+    fecha_union = models.DateField()
+
+    class Meta:
+        db_table = 'MIEMBROS'
+
+    REQUIRED_FIELDS=[
+        'grupo',
+        'persona',
+        'fecha_union',
+    ]
+
 #cuando el grupo se borra, las alertas se deben de borrar
 class Alerta(models.Model):
-    grupo_confianza = models.ForeignKey(GrupoConfianza, on_delete=models.CASCADE)
+    grupo = models.ForeignKey(Grupo, on_delete=models.CASCADE)
     nombre_alerta = models.CharField(max_length=30)
 
     class Meta:
         db_table = 'ALERTA'
 
-    REQUIRED_FIELDS=['grupo_confianza','nombre_alerta']
-
-#cuando la alerta se borra, el cuestionario se debe de borrar
-#cuando una circunstancia se borre no se debe de hacer nada
-#cuando un lazo se borre no se debe de hacer nada 
-class Cuestionario(models.Model):
-    
-    contacto_confianza = models.IntegerField()
-    descripcion = models.CharField(max_length=2000, blank=True, null=True)
-    autoridad_denuncia = models.CharField(max_length=50, blank=True, null=True)
-    modelo_vehiculo = models.CharField(max_length=50, blank=True, null=True)
-    violencia = models.CharField(max_length=2, blank=True, null=True)
-    acompanar = models.CharField(max_length=2, blank=True, null=True)
-    denuncia_previa = models.CharField(max_length=2, blank=True, null=True)
-    manejaba_auto = models.CharField(max_length=2, blank=True, null=True)
-    #llaves foraneas
-    alerta = models.ForeignKey(Alerta, on_delete=models.CASCADE)
-    circunstancia = models.ForeignKey(Circunstancia, models.DO_NOTHING)
-    lazo = models.ForeignKey(Lazo, models.DO_NOTHING)
-
-    class Meta:
-        db_table = 'CUESTIONARIO'
-
-    REQUIRED_FIELDS=[
-        'contacto_confianza',
-        'alerta',
-        'circunstancia',
-        'lazo'
-    ]
+    REQUIRED_FIELDS=['grupo','nombre_alerta']
 
 #si se borra la alerta, las ubicaciones se deben de borrar
 class Ubicacion(models.Model):
@@ -165,6 +153,40 @@ class Ubicacion(models.Model):
         'longitud',
         'fecha_hora',
         'alerta'
+    ]
+
+
+#cuando la alerta se borra, el cuestionario se debe de borrar
+#cuando una circunstancia se borre no se debe de hacer nada
+#cuando un lazo se borre no se debe de hacer nada 
+class Cuestionario(models.Model):
+    
+    miembro = models.ForeignKey(Miembros, on_delete=models.CASCADE)
+    alerta = models.ForeignKey(Alerta, on_delete=models.CASCADE)
+
+    descripcion = models.CharField(max_length=2000, blank=True, null=True)
+    autoridad_denuncia = models.CharField(max_length=50, blank=True, null=True)
+    modelo_vehiculo = models.CharField(max_length=50, blank=True, null=True)
+    violencia = models.CharField(max_length=2, blank=True, null=True)
+    acompanar = models.CharField(max_length=2, blank=True, null=True)
+    denuncia_previa = models.CharField(max_length=2, blank=True, null=True)
+    manejaba_auto = models.CharField(max_length=2, blank=True, null=True)
+    estado_usuaria = models.CharField(max_length=15)
+
+    #llaves foraneas para complementar el cuestionario
+    circunstancia = models.ForeignKey(Circunstancia, models.DO_NOTHING)
+    lazo = models.ForeignKey(Lazo, models.DO_NOTHING)
+
+    class Meta:
+        db_table = 'CUESTIONARIO'
+
+    REQUIRED_FIELDS=[
+        'username',
+        'contacto_confianza',
+        'estado_usuaria',
+        'alerta',
+        'circunstancia',
+        'lazo'
     ]
 
 #si la ubicacion corporal se borra no se debe de hacer nada

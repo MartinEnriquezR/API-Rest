@@ -12,9 +12,11 @@ router = DefaultRouter()
 
 router.register(r'persona',personaViewSet,basename='persona')
 router.register(r'usuaria',usuariaViewSet,basename='usuaria')
-router.register(r'grupo',grupoViewSet,basename='grupo')
 router.register(r'dispositivo',dispositivoViewSet,basename='dispositivo')
+router.register(r'grupo',grupoViewSet,basename='grupo')
+
 router.register(r'alerta',alertaViewSet,basename='alerta')
+router.register(r'cuestionario',cuestionarioViewSet,basename='cuestionario')
 
 
 

@@ -67,7 +67,6 @@ class personaViewSet(mixins.RetrieveModelMixin,
 
 class usuariaViewSet(viewsets.GenericViewSet):
     
-    #queryset = Usuaria.objects.all()
 
     def get_permissions(self):
         if self.action in ['signup']:
@@ -91,163 +90,48 @@ class usuariaViewSet(viewsets.GenericViewSet):
 
     @action(detail=False,methods=['get'])
     def informacion(self,request,*args,**kwargs):
+        #se obtiene la informacion desde el token de la peticion
         usuaria = get_object_or_404(Usuaria, persona = self.request.user)
         data = usuariaSerializer(usuaria).data
         return Response(data,status=status.HTTP_200_OK)
 
     @action(detail=False,methods=['delete'])
     def borrar(self,request):
-        usuaria = get_object_or_404(Usuaria, persona = self.request.user)
-        usuaria.delete()
-        return Response(status=status.HTTP_204_NO_CONTENT)
-    
-    @action(detail=True,methods=['put','patch'])
-    def actualizar(self,request,*args,**kwargs):
-        prueba = self.get_object()
-        partial = request.method == 'PATCH'
-        print(prueba)
-        return Response('hola')
-
-
-
-class grupoViewSet(viewsets.GenericViewSet):
-    
-    def get_permissions(self):
-        if self.action in ['create','retrieve','destroy','unirme','expulsar','misGrupos']:
-            permissions = [IsAuthenticated]
-        else:
-            permissions = [IsAuthenticated]
-        return [p() for p in permissions]
-
-    def create(self,request,*args,**kwargs):
-        serializer = grupoCrearSerializer(data = request.data)
-        serializer.is_valid(raise_exception = True)
-        grupo = serializer.save()
-        data = {
-            'grupo':grupoSerializer(grupo).data
-        }
-        return Response(data, status=status.HTTP_201_CREATED)
-
-    def retrieve(self,request,*args,**kwargs):
         
-        #recuperar informacion del grupo segun su usesrname
-        persona = get_object_or_404(Persona,username=self.kwargs.get('pk'))
-        usuaria = get_object_or_404(Usuaria, persona = persona)
-        grupo = get_object_or_404(GrupoConfianza,usuaria = usuaria)
-
-        data = {
-            'informacion_grupo' : grupoInformacionSerializer(grupo).data
-        }
-        
-        return Response(data, status=status.HTTP_200_OK)
-
-    def destroy(self,request,*args,**kwargs):
-        #recuperar a la usuaria segun su username
-        persona = get_object_or_404(Persona,username=self.kwargs.get('pk'))
-        usuaria = get_object_or_404(Usuaria, persona = persona)
-        grupo = get_object_or_404(GrupoConfianza,usuaria = usuaria)
-
-        grupo.delete()
-
-        return Response(status=status.HTTP_204_NO_CONTENT)
-
-    @action(detail=True,methods=['patch'])
-    def unirme(self,request,*args,**kwargs):
-        
-        #parametros [clave de acceso] y el [username] de la persona
-        self.request.data['username'] = self.kwargs.get('pk')
-        
-        serializer = grupoUnirSerializer(data = request.data)
-        serializer.is_valid(raise_exception = True)
-        grupo = serializer.save() 
-
-        data = {
-            'grupo': grupoInformacionPersonaSerializer(grupo).data
-        }
-
-        return Response(data, status=status.HTTP_200_OK)
-
-    @action(detail=True,methods=['patch'])
-    def expulsar(self,request,*args,**kwargs):
-        #[username] de la usuaria y el [username] de la persona
-        self.request.data['username_usuaria'] = self.kwargs.get('pk')
-        partial = request.method == 'PATCH'
-
-        serializer = grupoExpulsarSerializer(data = request.data, partial = partial )
-        serializer.is_valid(raise_exception = True)
-        grupo = serializer.save() 
-
-        data = {
-            'grupo': grupoInformacionSerializer(grupo).data
-        }
-
-        return Response(data, status=status.HTTP_200_OK)
-
-    @action(detail=True,methods=['patch'])
-    def nombre(self,request,*args,**kwargs):
-        #parametro el [username] de la usuaria y el nuevo [nombre_grupo]
-        self.request.data['username'] = self.kwargs.get('pk')
-        serializer = grupoNombreSerializer(data = request.data)
-        serializer.is_valid(raise_exception = True)
-        grupo = serializer.save()
-
-        data = {
-            'informacion_grupo' : grupoInformacionSerializer(grupo).data
-        }
-        
-        return Response(data, status=status.HTTP_200_OK)
-
-    @action(detail=False,methods=['get'])
-    def misGrupos(self,request,*args,**kwargs):
-        
-        #obtener a la persona 
+        #obtener la instancia de la persona
         persona = get_object_or_404(Persona,email=self.request.user)
+        usuaria = get_object_or_404(Usuaria, persona = persona)
         
-        try:
-            grupos = GrupoConfianza.objects.filter(miembros=persona)
-            serializer = misGruposSerializer(grupos,many=True)
-            data = serializer.data
-            estado = status.HTTP_200_OK
-            
-        except GrupoConfianza.DoesNotExist:
-            data = None
-            estado = status.HTTP_404_NOT_FOUND
-
-        return Response(data, status = estado)
-
-    @action(detail=False,methods=['patch'],url_path='salir-grupo')
-    def salirGrupo(self,request,*args,**kwargs):
-        #obtener la instancia de la persona que saldra del grupo
-        contacto = get_object_or_404(Persona,email=self.request.user)
+        #cambiar el estado de una usuaria
+        persona.is_usuaria = False
+        persona.save()
         
-        #obtener a la admin del grupo
-        admin = get_object_or_404(Persona,username=request.data['username'])
-        usuaria = get_object_or_404(Usuaria,persona=admin)
-        grupo = get_object_or_404(GrupoConfianza,usuaria = usuaria)
-
-        #salir del grupo
-        grupo.miembros.remove(contacto)
-        grupo.save()
+        #se elimina la instancia de la usuaria
+        usuaria.delete()
 
         return Response(status=status.HTTP_204_NO_CONTENT)
-
-
+    
+    
 
 class dispositivoViewSet(viewsets.GenericViewSet):
 
     def get_permissions(self):
         if self.action in ['asociar','desasociar','cambiarpin','misDispositivos']:
-            permissions = [IsAuthenticated]
+            permissions = [IsAuthenticated,IsAccountOwner]
         else:
             permissions = [IsAuthenticated]
         return [p() for p in permissions]
 
-    @action(detail=True,methods=['patch'])
+    @action(detail=False,methods=['patch'])
     def asociar(self,request,*args,**kwargs):
         #parametros [numero_serie] y el [pin_desactivador] de la usuaria
-        #obtener el username de la usuaria
-        self.request.data['username'] = self.kwargs.get('pk')
-        partial = request.method == 'PATCH'
+        
+        #validar que la usuaria exista dentro del sistema
+        persona = get_object_or_404(Persona,email=self.request.user)
+        usuaria = get_object_or_404(Usuaria, persona = persona)
+
+        #añadir el username a los datos de request.data
+        self.request.data['username'] = persona.username
 
         serializer = dispositivoAsociarSerializer(data = request.data)
         serializer.is_valid(raise_exception = True)
@@ -259,10 +143,16 @@ class dispositivoViewSet(viewsets.GenericViewSet):
 
         return Response(data,status = status.HTTP_200_OK)
 
-    @action(detail=True,methods=['patch'])
+    @action(detail=False,methods=['patch'])
     def desasociar(self,request,*args,**kwargs):
-        #datos requeridos [numero_serie] y [username] de la usuaria
-        self.request.data['username'] = self.kwargs.get('pk')
+        #datos requeridos [numero_serie]
+        
+        #instancia de la usuaria
+        persona = get_object_or_404(Persona,email=self.request.user)
+        usuaria = get_object_or_404(Usuaria, persona = persona)
+
+        #añadir el username de la usuaria a request.data
+        self.request.data['username'] = persona.username
 
         serializer = dispositivoDesasociarSerializer(data = request.data)
         serializer.is_valid(raise_exception = True)
@@ -270,12 +160,17 @@ class dispositivoViewSet(viewsets.GenericViewSet):
 
         return Response(status=status.HTTP_200_OK)
 
-    @action(detail=True,methods=['patch'])
+    @action(detail=False,methods=['patch'])
     def cambiarpin(self,request,*args,**kwargs):
-        #[username] de la usuaria y el [numero_serie] del dispositivo
-        #[pin_desactivador] nuevo pin
-        self.request.data['username'] = self.kwargs.get('pk')
+        #[numero_serie] del dispositivo y el [pin_desactivador] nuevo pin
+        
+        #instancia de la usuaria
+        persona = get_object_or_404(Persona,email = request.user)
+        usuaria = get_object_or_404(Usuaria, persona = persona)
 
+        #añadir a request.data el username de la usuaria
+        self.request.data['username'] = persona.username
+        
         serializer = dispositivoPinSerializer(data = request.data)
         serializer.is_valid(raise_exception = True)
         dispositivo = serializer.save()
@@ -288,14 +183,15 @@ class dispositivoViewSet(viewsets.GenericViewSet):
 
     @action(detail=False,methods=['get'])
     def misDispositivos(self,request,*args,**kwargs):
+
         #instancia de la persona
         persona = get_object_or_404(Persona,email=self.request.user)
         usuaria = get_object_or_404(Usuaria,persona=persona)
         
-        #dispositivos de la usuaria
+        #traer el dispositivo o dispositivo que tiene la usuaria
         try:
             dispositivos = DispositivoRastreador.objects.filter(usuaria=usuaria)
-            #serializacion
+
             serializer = dispositivoInformacionSerializer(dispositivos,many=True)
             data = serializer.data
             estado = status.HTTP_200_OK
@@ -305,6 +201,144 @@ class dispositivoViewSet(viewsets.GenericViewSet):
             estado = status.HTTP_404_NOT_FOUND
         
         return Response(data)
+
+
+
+class grupoViewSet(viewsets.GenericViewSet):
+    
+    def get_permissions(self):
+        if self.action in ['create','retrieve','destroy','unirme','expulsar','nombre','misGrupos','salirGrupo']:
+            permissions = [IsAuthenticated,IsAccountOwner]
+        else:
+            permissions = [IsAuthenticated]
+        return [p() for p in permissions]
+
+    def create(self,request,*args,**kwargs):
+        #parametros: [nombre_grupo] del nuevo grupo
+
+        #obtener la instancia de la usuaria
+        persona = get_object_or_404(Persona,email=self.request.user)
+        usuaria = get_object_or_404(Usuaria, persona = persona)
+
+        #añadir  a request.data el username de la usuaria
+        request.data['username'] = persona.username
+ 
+        serializer = grupoCrearSerializer(data = request.data)
+        serializer.is_valid(raise_exception = True)
+        grupo = serializer.save()
+
+        data = {
+            'grupo':grupoSerializer(grupo).data
+        }
+        return Response(data, status=status.HTTP_201_CREATED)
+
+    def retrieve(self,request,*args,**kwargs):
+        #no se necesitan ningun parametro
+
+        persona = get_object_or_404(Persona, email = self.request.user)
+        usuaria = get_object_or_404(Usuaria, persona = persona)
+        grupo = get_object_or_404(Grupo, usuaria = usuaria)
+
+        data = {
+            'informacion_grupo' : grupoInformacionSerializer(grupo).data
+        }
+        
+        return Response(data, status=status.HTTP_200_OK)
+
+    def destroy(self,request,*args,**kwargs):
+
+        persona = get_object_or_404(Persona, email = self.request.user)
+        usuaria = get_object_or_404(Usuaria, persona = persona)
+        grupo = get_object_or_404(Grupo, usuaria = usuaria)
+
+        grupo.delete()
+
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+    @action(detail=False,methods=['patch'])
+    def unirme(self,request,*args,**kwargs):
+        #parametros [clave de acceso]
+        
+        persona = get_object_or_404(Persona, email = request.user)
+        self.request.data['username'] = persona.username
+
+        serializer = grupoUnirSerializer(data = request.data)
+        serializer.is_valid(raise_exception = True)
+        grupo = serializer.save() 
+
+        data = {
+            'grupo': grupoInformacionPersonaSerializer(grupo).data
+        }
+
+        return Response(data, status=status.HTTP_200_OK)
+
+    @action(detail=False,methods=['patch'])
+    def expulsar(self,request,*args,**kwargs):
+        #parametros [username] de la persona la usuaria quiere expulsar
+
+        persona = get_object_or_404(Persona, email=request.user)
+        self.request.data['username_usuaria'] = persona.username
+
+        serializer = grupoExpulsarSerializer(data = request.data)
+        serializer.is_valid(raise_exception = True)
+        grupo = serializer.save() 
+
+        data = {
+            'grupo': grupoInformacionSerializer(grupo).data
+        }
+
+        return Response(data, status=status.HTTP_200_OK)
+
+    @action(detail=False,methods=['patch'])
+    def nombre(self,request,*args,**kwargs):
+        #[nombre] nombre del grupo nuevo
+
+        persona = get_object_or_404(Persona, email=self.request.user)
+        self.request.data['username'] = persona.username
+
+        serializer = grupoNombreSerializer(data = request.data)
+        serializer.is_valid(raise_exception = True)
+        grupo = serializer.save()
+
+        data = {
+            'informacion_grupo' : grupoInformacionSerializer(grupo).data
+        }
+        return Response(data, status=status.HTTP_200_OK)
+
+    @action(detail=False,methods=['get'],url_path='mis-grupos')
+    def misGrupos(self,request,*args,**kwargs):
+        
+        persona = get_object_or_404(Persona,email=self.request.user)
+        
+        try:
+            grupos = Grupo.objects.filter(integrantes__username=persona.username)
+            serializer = misGruposSerializer(grupos,many=True)
+            data = serializer.data
+            estado = status.HTTP_200_OK
+            
+        except Grupo.DoesNotExist:
+            data = None
+            estado = status.HTTP_404_NOT_FOUND
+
+        return Response(data, status = estado)
+
+    @action(detail=False,methods=['patch'],url_path='salir-grupo')
+    def salirGrupo(self,request,*args,**kwargs):
+
+        #obtener la instancia de la persona que saldra del grupo
+        contacto = get_object_or_404(Persona,email=self.request.user)
+        
+        #obtener a la admin del grupo
+        admin = get_object_or_404(Persona,username=request.data['username_usuaria'])
+        usuaria = get_object_or_404(Usuaria,persona=admin)
+        grupo = get_object_or_404(Grupo,usuaria = usuaria)
+
+        #salir del grupo
+        miembros = get_object_or_404(Miembros,grupo=grupo,persona=contacto)
+        miembros.delete()
+
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
 
 
 
@@ -328,200 +362,37 @@ class alertaViewSet(viewsets.GenericViewSet):
 
         return Response(status=status.HTTP_200_OK)
 
-
-    """cuando se quiera  checar la desactivacion desactivar la alerta se debe enviar solo
-        el [numero_serie] del dispositivo
-    """
+    #se ve si la alerta fue desactivada
     @action(detail=False, methods=['get'])
     def desactivacion(self,request,*args,**kwargs):
         
-        serializer = alertaDesactivacionSerializer(data = request.data)
-        serializer.is_valid(raise_exception = True)
-        desactivacion = serializer.save()
+        #obtener la instancia del dispositivo Dispositivo
+        try:
+            dispositivo = get_object_or_404(DispositivoRastreador,numero_serie=request.data['numero_serie'])
+            #traer la informacion del dispositivo
+            serializer = alertaDesactivacionSerializer(dispositivo)
+            data = serializer.data
+            estado = status.HTTP_200_OK
 
-        return Response(desactivacion, status = status.HTTP_200_OK)
-
-
-
-
-
-
-
-
-
-
-
-"""
-    @action(detail=True,methods=['put','patch'])
-    def actualizar(self,request,*args,**kwargs):
-        persona = self.get_object()
-        print(persona)
-        usuaria = persona.usuaria
-            partial = request.methods == 'PATCH'
-            serializer = usuariaSerializer(
-                usuaria,
-                data = request.data,
-                partial = partial
-            )
-            serializer.is_valid(raise_exception=True)
-            serializer.save()
-            data = usuariaSerializer(usuaria).data
-            print(data)
-        return Response('hola')
-"""
-"""
-    @action(detail=False,methods=['GET'])
-    def informacion(self,request,*args,**kwargs):
-        #persona = get_object_or_404(Persona,username=kwargs['pk'])
-        usuaria = get_object_or_404(Usuaria,persona=self.request.user)
-        data = {
-            'informacion_usuaria':usuariaSerializer(usuaria).data
-        }
-        return Response(data)
-
-    @action(detail=False,methods=['DELETE'])
-    def borrar(self,request):
-        usuaria = Usuaria.objects.get(persona=self.request.user)
-        usuaria.delete()
-        return Response(status=status.HTTP_204_NO_CONTENT)
-"""
-
-
-"""
-funcion : signup (usuaria)
-parametros : email, username, nombre, apellido_paterno, apellido_materno
-            genero, fecha_nacimiento, is_usuaria, is_contacto_confianza
-            estatura, estado_civil, escolaridad, nacionalidad, tipo_nariz
-            complexion, color_ojo, forma_rostro, color_cabello, color_piel, tipo_ceja,
-            textura_cabello, [enfermedades]
-return : username, email, nombre, apellido_paterno, apellido_materno, 
-         access_token, is_usuaria, is_contacto_cofianza
-permisos : AllowAny 
-
-class usuariaSignupViewSet(viewsets.ViewSet):
-    permission_classes = [AllowAny]
-
-    def create(self,request):
-        serializer = usuariaSignupSerializer(data = request.data)
-        serializer.is_valid(raise_exception = True)
-        persona, token = serializer.save()
-        data = {
-            'persona' : personaSerializer(persona).data,
-            'access_token' : token
-        }
-        return Response(data,status=status.HTTP_201_CREATED)
-"""
-"""
-funcion : asociar el dispositivo con la usuaria
-parametros : numero de serie, pin desactivardor, [acccess_token]
-return : mensaje de confirmacion con el numero de serie
-permisos: Token
-
-class dispositivoViewSet(viewsets.ViewSet):
-    permission_classes = [IsAuthenticated]
-
-    def list(self,request):
-        queryset = DispositivoRastreador.objects.all()
-        serializer = dispositivoSerializer(queryset,many=True)
-        print(request.user)
-        return Response(serializer.data)
-    
-    def partial_update(self,request,pk=None):
-        data = request.data
-        data['numero_serie'] = pk
-        serializer = dispositivoAsociarSerializer(data = data)
-        serializer.is_valid(raise_exception = True)
-        serializer.save()
-        return Response(serializer.data)
-"""    
-"""
-class usuariaViewSet(viewsets.ModelViewSet):
-    
-    permission_classes = [AllowAny]
-    queryset = Usuaria.objects.all()
-    serializer_class = usuariaSerializer
-
-
-class userLoginAPIView(APIView):
-    permission_classes = [AllowAny]
-    
-    def post(self,request,*args,**kwargs):    
-        serializer = personaLoginSerializer(data= request.data)
-        serializer.is_valid(raise_exception=True)
-
-        #se busca devolver los datos de la persona y el token
-        persona, token = serializer.save()
-        data={
-            'persona': personaSerializer(persona).data,
-            'access_token':token
-        }
-        return Response(data,status=status.HTTP_201_CREATED)
-class personaSignupAPIView(APIView):
-    permission_classes = [AllowAny]
-    def post(self,request,*args,**kwargs):
+        except DispositivoRastreador.DoesNotExist:
+            data = None
+            estado = status.HTTP_404_NOT_FOUND
         
-        serializer = personaSignupSerializer(data= request.data)
-        serializer.is_valid(raise_exception=True)
+        return Response(data, status = estado)
 
-        #se busca devolver los datos de la persona
-        persona, token = serializer.save()
-        data = {
-            'persona' : personaSerializer(persona).data,
-            'access_token' : token
-        }
-        return Response(data,status=status.HTTP_201_CREATED)
-class usuariaSignupAPIView(APIView):
-    permission_classes = [AllowAny]
-    def post(self,request,*args,**kwargs):
-        serializer = usuariaSignupSerializer(data = request.data)
-        serializer.is_valid(raise_exception = True)
-        usuaria, token = serializer.save()
-        data = {
-            'usuaria' : personaSerializer(usuaria).data,
-            'access_token' : token
-        }
-        return Response(data,status=status.HTTP_201_CREATED)
-"""
 
-"""
-funcion : login (ya sea usuaria o contacto de confianza)
-parametros : email y password
-return : username, email, nombre, apellido_paterno, apellido_materno, 
-         access_token, is_usuaria, is_contacto_cofianza
-permisos : AllowAny 
 
-class personaLoginViewSet(viewsets.ViewSet):
-    permission_classes = [AllowAny]
+class cuestionarioViewSet(viewsets.GenericViewSet):
     
-    def create(self,request):
-        serializer = personaLoginSerializer(data = request.data)
-        serializer.is_valid(raise_exception = True)
-        persona, token = serializer.save()
-        data = {
-            'persona' : personaSerializer(persona).data,
-            'access_token' : token
-        }
-        return Response(data,status=status.HTTP_201_CREATED)
-"""
-
-"""
-funcion : signup (persona)
-parametros : email, username, nombre, apellido_paterno, apellido_materno
-            genero, fecha_nacimiento, is_usuaria, is_contacto_confianza
-return : username, email, nombre, apellido_paterno, apellido_materno, 
-         access_token, is_usuaria, is_contacto_cofianza
-permisos : AllowAny 
-
-class personaSignupViewSet(viewsets.ViewSet):
     permission_classes = [AllowAny]
 
-    def create(self,request):
-        serializer = personaSignupSerializer(data = request.data)
-        serializer.is_valid(raise_exception = True)
-        persona, token = serializer.save()
-        data = {
-            'persona' : personaSerializer(persona).data,
-            'access_token' : token
-        }
-        return Response(data,status=status.HTTP_201_CREATED)
-"""
+    def create(self,request,*args,**kwargs):
+        #
+
+        return Response()
+
+
+
+
+
+

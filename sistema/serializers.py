@@ -12,6 +12,7 @@ from rest_framework.validators import UniqueValidator
 #librerias de python
 from random import seed
 from random import randint
+import datetime
 
 #importando los modelos
 from .models import *
@@ -111,10 +112,11 @@ class personaSignupSerializer(serializers.Serializer):
 
 
 
+
 """Serializer para que una usuaria que se regustra dentro del sistema"""
 class usuariaSignupSerializer(serializers.Serializer):
     
-    #datos de la persona
+    #campos de la persona
     email = serializers.EmailField(
         validators=[
             UniqueValidator(queryset=Persona.objects.all())
@@ -136,6 +138,7 @@ class usuariaSignupSerializer(serializers.Serializer):
     fecha_nacimiento = serializers.DateField()
     is_usuaria = serializers.BooleanField()
     is_contacto_confianza = serializers.BooleanField()
+    
     #campos de la usuaria  
     estatura = serializers.IntegerField()
     estado_civil = serializers.CharField()
@@ -279,7 +282,6 @@ class usuariaSignupSerializer(serializers.Serializer):
             color_piel=ColorPiel.objects.get(color_piel=data['color_piel']),
             tipo_ceja=TipoCejas.objects.get(tipo_ceja=data['tipo_ceja']),
             textura_cabello=TexturaCabello.objects.get(textura_cabello=data['textura_cabello'])
-            #enfermedades=
         )
         
         #registro de la o las enfermedades que padece la usuaria
@@ -289,7 +291,8 @@ class usuariaSignupSerializer(serializers.Serializer):
                 #objeto de la enfermedad
                 Enfermedad.objects.get(nombre_enfermedad=enfermedadData['nombre_enfermedad'])
             )
-        
+        usuaria.save()
+
         #obtener el token
         self.context['persona'] = persona
         token, created = Token.objects.get_or_create(user=self.context['persona'])
@@ -331,271 +334,6 @@ class usuariaSerializer(serializers.ModelSerializer):
 
 
 
-
-"""Nombre y clave de acceso de un grupo de confianza"""
-class grupoSerializer(serializers.ModelSerializer):
-
-    class Meta:
-        model = GrupoConfianza
-        fields = (
-            'nombre_grupo',
-            'clave_acceso'
-        )
-
-"""Creacion del grupo de confianza"""
-class grupoCrearSerializer(serializers.Serializer):
-    #validar el tamaño del nombre del grupo
-    username = serializers.CharField()
-    nombre_grupo = serializers.CharField(max_length=20)
-    
-    def validate(self,data):
-        
-        #verificar que no se haya excedido el maximo numero de grupo permitidos
-        grupos = GrupoConfianza.objects.all().count()
-        if grupos == 1000000:
-            raise serializers.ValidationError('Ya no existen grupos disponibles')
-        
-        #verificar que la usuaria no tenga un grupo ya existente
-        try:
-            persona = Persona.objects.get(username =data['username'])
-        except Persona.DoesNotExist:
-            raise serializers.ValidationError('Username invalido')
-
-        try:
-            usuaria = Usuaria.objects.get(persona=persona)
-        except Usuaria.DoesNotExist:
-            raise serializers.ValidationError('Usuario invalido')
-
-        try:
-            grupo = GrupoConfianza.objects.get(usuaria=usuaria)
-            raise serializers.ValidationError('La usuaria ya tiene un grupo de confianza')
-        except GrupoConfianza.DoesNotExist:
-            pass
-
-        #validar la clave de acceso, que no este en uso por otro grupo
-        seed(1)
-        while True:
-            clave = randint(0,999999)
-            try:
-                GrupoConfianza.objects.get(clave_acceso=str(clave))
-            except GrupoConfianza.DoesNotExist:
-                self.context['clave'] = str(clave)
-                break
-
-        return(data)
-    
-    def create(self,data):
-        #obtener a la usuaria
-        persona = Persona.objects.get(username=data['username'])
-        usuaria = Usuaria.objects.get(persona=persona)
-
-        #guardar la informacion
-        data.pop('username')
-        grupo = GrupoConfianza.objects.create(
-            **data,
-            usuaria = usuaria,
-            clave_acceso = self.context['clave']
-        )
-
-        return grupo
-
-"""Informacion de los miembros"""
-class MiembroSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Persona
-        fields = (
-            'username',
-            'nombre',
-            'apellido_paterno',
-            'apellido_materno'
-        )
-
-"""Informacion bascia del grupo de confianza, solo lo puede visualizar la usuaria"""
-class grupoInformacionSerializer(serializers.ModelSerializer):
-    miembros = MiembroSerializer(many=True)
-
-    class Meta:
-        model = GrupoConfianza
-        fields = (
-            'nombre_grupo',
-            'clave_acceso',
-            'miembros'
-        )
-
-"""Unirse al grupo de confianza"""
-class grupoUnirSerializer(serializers.Serializer):
-    #username de la persona que se quiere unir
-    username = serializers.CharField()
-    #clade de acceso del grupo al que se va a unir
-    clave_acceso = serializers.CharField()
-
-    def validate(self,data):
-        #validar que el grupo asociado a esta clave de acceso exista
-        try:
-            grupo = GrupoConfianza.objects.get(clave_acceso=data['clave_acceso'])
-        except GrupoConfianza.DoesNotExist:
-            raise serializers.ValidationError('No existe este grupo, verifica tu clave de acceso')
-
-        #validar que el limite de usuarios dentro del grupo no se haya excedido
-        totalMiembros = grupo.miembros.count()
-        if totalMiembros == 5:
-            raise serializers.ValidationError('No se pueden agreagar mas miembros a este grupo')
-
-        #validar que el usuario exista
-        try:
-            persona = Persona.objects.get(username=data['username'])
-        except Persona.DoesNotExist:
-            raise serializers.ValidationError('El usuario no existe')
-
-        #validar que no se vuelva a unir a un grupo esta persona
-        try:
-            GrupoConfianza.objects.get(clave_acceso=data['clave_acceso'],miembros=persona)
-            raise serializers.ValidationError('Ya formas parte de este grupo de confianza')
-        except GrupoConfianza.DoesNotExist:
-            pass
-
-        return(data)
-
-    def create(self,data):
-        #grupo al que pertenece la clave de acceso
-        grupo = GrupoConfianza.objects.get(clave_acceso=data['clave_acceso'])
-        #instancia de la persona
-        persona = Persona.objects.get(username =data['username'])
-
-        #añadir a la persona al grupo
-        grupo.miembros.add(persona)
-        grupo.save()
-
-        return grupo
-
-"""Informacion que puede visualizar el contacto de confianza sobre el grupo al momento de unirse"""
-class grupoInformacionPersonaSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = GrupoConfianza
-        fields = ('nombre_grupo',)
-
-"""Serializer para expulsar a una persona de un grupo de confianza"""
-class grupoExpulsarSerializer(serializers.Serializer):
-    username_usuaria = serializers.CharField()
-    username_persona = serializers.CharField()
-
-    def validate(self, data):
-        #saber si usuaria la tiene un grupo de confianza
-        try:
-            persona = Persona.objects.get(username =data['username_usuaria'])
-        except Persona.DoesNotExist:
-            raise serializers.ValidationError('Username invalido')
-        try:
-            usuaria = Usuaria.objects.get(persona=persona)
-        except Usuaria.DoesNotExist:
-            raise serializers.ValidationError('Username invalido')
-        try:
-            grupo = GrupoConfianza.objects.get(usuaria=usuaria)
-        except GrupoConfianza.DoesNotExist:
-            raise serializers.ValidationError('La usuaria no tiene un grupo de confianza')
-
-        #saber si el contacto de confianza existe
-        try:
-            persona = Persona.objects.get(username =data['username_persona'])
-        except Persona.DoesNotExist:
-            raise serializers.ValidationError('Username del contacto de confianza incorrecto')
-        #saber si en grupo tiene a este miembro
-        try:
-            GrupoConfianza.objects.get(usuaria= usuaria,miembros=persona)
-        except GrupoConfianza.DoesNotExist:
-            raise serializers.ValidationError('Este contacto de confianza no es miembro de este grupo')
-
-        return data
-
-    def create(self,data):
-        #instancia de la usuaria
-        persona = Persona.objects.get(username =data['username_usuaria'])
-        usuaria = Usuaria.objects.get(persona=persona)
-        #grupo de la usuaria
-        grupo = GrupoConfianza.objects.get(usuaria=usuaria)
-
-        #instancia de la persona que se va a expulsar
-        miembro = Persona.objects.get(username =data['username_persona'])
-       
-        #removiendo al miembro
-        grupo.miembros.remove(miembro)
-        grupo.save()
-
-        return grupo
-
-"""Serializer para cambiar el nombre de un grupo"""
-class grupoNombreSerializer(serializers.Serializer):
-    username = serializers.CharField()
-    nombre_grupo = serializers.CharField(max_length=20)
-
-    def validate(self,data):
-        #verificar que la usuaria exista segun el username proporcionado
-        try:
-            persona = Persona.objects.get(username =data['username'])
-        except Persona.DoesNotExist:
-            raise serializers.ValidationError('Username invalido')
-        try:
-            usuaria = Usuaria.objects.get(persona = persona)
-        except Usuaria.DoesNotExist:
-            raise serializers.ValidationError('Username invalido')
-
-        #verificar que el grupo exista
-        try:
-            grupo = GrupoConfianza.objects.get(usuaria=usuaria)
-        except GrupoConfianza.DoesNotExist:
-            raise serializers.ValidationError('Esta usuaria no tiene ningun grupo')
-        
-        #verificar que el nombre sea diferente
-        if grupo.nombre_grupo == data['nombre_grupo']:
-            raise serializers.ValidationError('El nuevo nombre debe de ser diferente')
-
-        return data
-
-    def create(self,data):
-        #instancia de la usuaria
-        persona = Persona.objects.get(username =data['username'])
-        usuaria = Usuaria.objects.get(persona=persona)
-
-        #grupo de la usuaria
-        grupo = GrupoConfianza.objects.get(usuaria = usuaria)
-
-        #nuevo nombre del grupo asignado por la usuaria
-        grupo.nombre_grupo = data['nombre_grupo']
-        grupo.save()
-
-        return grupo
-
-"""Serializer para que el contacto vea informacion basica de la usuaria """
-class personaInformacionBasicaSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Persona
-        fields = (
-            'username',
-            'nombre',
-            'apellido_paterno',
-        )
-
-"""Serializer para que el contacto vea informacion basica de la usuaria"""
-class usuariaGrupoSerializer(serializers.ModelSerializer):
-    persona = personaInformacionBasicaSerializer()
-    class Meta:
-        model = Usuaria
-        fields = (
-            'persona',
-        )
-
-"""Serializer para ver los grupos a los que una persona pertenece"""
-class misGruposSerializer(serializers.ModelSerializer):
-    usuaria = usuariaGrupoSerializer()
-    class Meta:
-        model = GrupoConfianza
-        fields = (
-            'usuaria',
-            'nombre_grupo',
-        )
-
-
-
 """Serializer para ver informacion basica de un dispositivo"""
 class dispositivoInformacionSerializer(serializers.ModelSerializer):
 
@@ -615,21 +353,12 @@ class dispositivoAsociarSerializer(serializers.Serializer):
 
     
     def validate(self,data):
-        #validar que la usuaria este registrada
-        try:
-            persona = Persona.objects.get(username =data['username'])
-        except Persona.DoesNotExist:
-            raise serializers.ValidationError('Este username no corresponde a ninguna persona')
-        try:
-            usuaria = Usuaria.objects.get(persona = persona)
-        except Usuaria.DoesNotExist:
-            raise serializers.ValidationError('No existe ninguna usuaria con este username')
-
+        
         #buscar si el dispositivo se encuentra dentro de la base de datos
         try:
-            registrado = DispositivoRastreador.objects.get(numero_serie = data['numero_serie'])
+            dispositivo = DispositivoRastreador.objects.get(numero_serie = data['numero_serie'])
             #verificar que el dispositivo no tenga a ninguna usuaria asignada
-            if registrado.usuaria:
+            if dispositivo.usuaria:
                 raise serializers.ValidationError('Numero de serie incorrecto')
         except DispositivoRastreador.DoesNotExist:
             raise serializers.ValidationError('Numero de serie incorrecto.')
@@ -745,6 +474,271 @@ class dispositivoPinSerializer(serializers.Serializer):
 
 
 
+
+"""Nombre y clave de acceso de un grupo de confianza"""
+class grupoSerializer(serializers.ModelSerializer):
+
+    class Meta:
+        model = Grupo
+        fields = (
+            'nombre',
+            'clave_acceso'
+        )
+
+"""Creacion del grupo de confianza"""
+class grupoCrearSerializer(serializers.Serializer):
+    #validar el tamaño del nombre del grupo
+    username = serializers.CharField()
+    nombre = serializers.CharField(max_length=20)
+    
+    def validate(self,data):
+        
+        #verificar que no se haya excedido el maximo numero de grupo permitidos
+        grupos = Grupo.objects.all().count()
+        if grupos == 1000000:
+            raise serializers.ValidationError('Ya no existen grupos disponibles')
+        
+        #verificar que la usuaria no tenga un grupo ya existente
+        try:
+            persona = Persona.objects.get(username =data['username'])
+        except Persona.DoesNotExist:
+            raise serializers.ValidationError('Username invalido')
+
+        try:
+            usuaria = Usuaria.objects.get(persona=persona)
+        except Usuaria.DoesNotExist:
+            raise serializers.ValidationError('Usuario invalido')
+
+        try:
+            grupo = Grupo.objects.get(usuaria=usuaria)
+            raise serializers.ValidationError('La usuaria ya tiene un grupo de confianza')
+        except Grupo.DoesNotExist:
+            pass
+
+        #validar la clave de acceso, que no este en uso por otro grupo
+        seed(1)
+        while True:
+            clave = randint(0,999999)
+            try:
+                Grupo.objects.get(clave_acceso=str(clave))
+            except Grupo.DoesNotExist:
+                self.context['clave'] = str(clave)
+                break
+
+        return(data)
+    
+    def create(self,data):
+        #obtener a la usuaria
+        persona = Persona.objects.get(username=data['username'])
+        usuaria = Usuaria.objects.get(persona=persona)
+
+        #guardar la informacion
+        data.pop('username')
+        grupo = Grupo.objects.create(
+            **data,
+            usuaria = usuaria,
+            clave_acceso = self.context['clave']
+        )
+
+        return grupo
+
+"""Informacion de los miembros"""
+class MiembroSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Persona
+        fields = (
+            'username',
+            'nombre',
+            'apellido_paterno',
+            'apellido_materno',
+        )
+
+"""Informacion bascia del grupo de confianza, solo lo puede visualizar la usuaria"""
+class grupoInformacionSerializer(serializers.ModelSerializer):
+    integrantes = MiembroSerializer(many=True)
+
+    class Meta:
+        model = Grupo
+        fields = (
+            'nombre',
+            'clave_acceso',
+            'integrantes',
+        )
+
+"""Unirse al grupo de confianza"""
+class grupoUnirSerializer(serializers.Serializer):
+    
+    username = serializers.CharField()
+    clave_acceso = serializers.CharField()
+
+    def validate(self,data):
+        #validar que el grupo al que se quiere unir exista
+        try:
+            grupo = Grupo.objects.get(clave_acceso = data['clave_acceso'])
+        except Grupo.DoesNotExist:
+            raise serializers.ValidationError('No existe ningun grupo con esta clave de acceso')
+
+        #validar que el limite de usuarios dentro del grupo
+        totalMiembros = grupo.integrantes.all().count()
+        if totalMiembros == 5:
+            raise serializers.ValidationError('No se pueden agregar mas miembros a este grupo')
+
+        #validar que no se vuelva a unir a un grupo esta persona    
+        persona = Persona.objects.get(username=data['username'])
+
+        try:
+            Miembros.objects.get(grupo=grupo, persona=persona)
+            raise serializers.ValidationError('Ya formas parte de este grupo de confianza')
+        except Miembros.DoesNotExist:
+            pass
+
+        return(data)
+
+    def create(self,data):
+
+        grupo = Grupo.objects.get(clave_acceso=data['clave_acceso'])
+        persona = Persona.objects.get(username =data['username'])
+
+        miembro = Miembros.objects.create(
+            grupo=grupo,
+            persona=persona,
+            fecha_union=datetime.date.today()
+        )
+
+        return grupo
+
+"""Informacion que puede visualizar el contacto de confianza sobre el grupo al momento de unirse"""
+class grupoInformacionPersonaSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Grupo
+        fields = ('nombre',)
+
+"""Serializer para expulsar a una persona de un grupo de confianza"""
+class grupoExpulsarSerializer(serializers.Serializer):
+    username_usuaria = serializers.CharField()
+    username_persona = serializers.CharField()
+
+    def validate(self, data):
+        
+        #saber si la usuaria tiene un grupo de confianza
+        try:
+            admin = Persona.objects.get(username =data['username_usuaria'])
+        except Persona.DoesNotExist:
+            raise serializers.ValidationError('Username invalido')
+        try:
+            usuaria = Usuaria.objects.get(persona=admin)
+        except Usuaria.DoesNotExist:
+            raise serializers.ValidationError('Username invalido')
+        try:
+            grupo = Grupo.objects.get(usuaria=usuaria)
+        except Grupo.DoesNotExist:
+            raise serializers.ValidationError('La usuaria no tiene un grupo de confianza')
+
+        #saber si el contacto de confianza existe
+        try:
+            contacto = Persona.objects.get(username =data['username_persona'])
+        except Persona.DoesNotExist:
+            raise serializers.ValidationError('Username del contacto de confianza incorrecto')
+        
+        #saber si en este grupo tiene a el miembro
+        try:
+            Miembros.objects.get(grupo=grupo ,persona= contacto)
+        except Miembros.DoesNotExist:
+            raise serializers.ValidationError('Este contacto de confianza no es miembro de este grupo')
+
+        return data
+
+    def create(self,data):
+        #instancia de la usuaria
+        persona = Persona.objects.get(username =data['username_usuaria'])
+        usuaria = Usuaria.objects.get(persona=persona)
+        
+        #grupo de la usuaria
+        grupo = Grupo.objects.get(usuaria=usuaria)
+
+        #instancia de la persona que se va a expulsar
+        miembro = Persona.objects.get(username =data['username_persona'])
+       
+        #removiendo al miembro
+        miembro = Miembros.objects.get(grupo=grupo,persona=miembro)
+        miembro.delete()
+
+        return grupo
+
+"""Serializer para cambiar el nombre de un grupo"""
+class grupoNombreSerializer(serializers.Serializer):
+    username = serializers.CharField()
+    nombre = serializers.CharField(max_length=20)
+
+    def validate(self,data):
+        #verificar que la usuaria exista segun el username proporcionado
+        try:
+            persona = Persona.objects.get(username =data['username'])
+        except Persona.DoesNotExist:
+            raise serializers.ValidationError('Username invalido')
+        try:
+            usuaria = Usuaria.objects.get(persona = persona)
+        except Usuaria.DoesNotExist:
+            raise serializers.ValidationError('Username invalido')
+
+        #verificar que el grupo exista
+        try:
+            grupo = Grupo.objects.get(usuaria=usuaria)
+        except Grupo.DoesNotExist:
+            raise serializers.ValidationError('Esta usuaria no tiene ningun grupo')
+        
+        #verificar que el nombre nuevo del grupo sea diferente
+        if grupo.nombre == data['nombre']:
+            raise serializers.ValidationError('El nuevo nombre debe de ser diferente')
+
+        return data
+
+    def create(self,data):
+        #instancia de la usuaria
+        persona = Persona.objects.get(username =data['username'])
+        usuaria = Usuaria.objects.get(persona=persona)
+
+        #grupo de la usuaria
+        grupo = Grupo.objects.get(usuaria = usuaria)
+
+        #nuevo nombre del grupo asignado por la usuaria
+        grupo.nombre = data['nombre']
+        grupo.save()
+
+        return grupo
+
+"""Serializer para que el contacto vea informacion basica de la usuaria """
+class personaInformacionBasicaSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Persona
+        fields = (
+            'username',
+            'nombre',
+            'apellido_paterno',
+        )
+
+"""Serializer para que el contacto vea informacion basica de la usuaria"""
+class usuariaGrupoSerializer(serializers.ModelSerializer):
+    persona = personaInformacionBasicaSerializer()
+    class Meta:
+        model = Usuaria
+        fields = (
+            'persona',
+        )
+
+"""Serializer para ver los grupos a los que una persona pertenece"""
+class misGruposSerializer(serializers.ModelSerializer):
+    usuaria = usuariaGrupoSerializer()
+    class Meta:
+        model = Grupo
+        fields = (
+            'usuaria',
+            'nombre',
+        )
+
+
+
+
 """Serializer para publicar una alerta desde el dispositivo"""
 class alertaPublicarSerializer(serializers.Serializer):
     numero_serie = serializers.IntegerField()
@@ -754,48 +748,62 @@ class alertaPublicarSerializer(serializers.Serializer):
     fecha_hora = serializers.DateTimeField()
 
     def validate(self,data):
-        #validar que el dipositivo exista y tenga a una usuaria enlazada
+        
+        #validar que el dipositivo exista
         try:
             dispositivo = DispositivoRastreador.objects.get(numero_serie = data['numero_serie'])
-            #saber si tiene una usuaria registrada
-            if dispositivo.usuaria:
+            #saber si el dispositivo tiene a una usuaria registrada
+            if not dispositivo.usuaria:
                 raise serializers.ValidationError('Numero de serie incorrecto')
+            
         except DispositivoRastreador.DoesNotExist:
             raise serializers.ValidationError('Numero de serie incorrecto')
 
         return data
 
     def create(self,data):
-        #usuaria que tiene el dispositivo
+        
+        #dispositivo
         dispositivo = DispositivoRastreador.objects.get(numero_serie = data['numero_serie'])
         usuaria = dispositivo.usuaria
 
-        #cambiar el estado de la alerta
+        #Activar la alerta dentro del registro del dispositivo
         dispositivo.estado = 'Activado'
         dispositivo.save()
 
-        #grupo que tiene la usuaria
-        grupo = GrupoConfianza.objects.get(usuaria=usuaria)
+        #Grupo que administra la usuaria
+        grupo = Grupo.objects.get(usuaria=usuaria)
 
-        #crear la alerta o en su caso devolverla segun su nombre
+        #crear la instancia de la alerta, si ya existe devolver la instancia 
         obj, created = Alerta.objects.get_or_create(
-            grupo_confianza= grupo,
-            nombre_alerta= data['nombre_alerta']
+            grupo=grupo,
+            nombre_alerta=data['nombre_alerta']
         )
 
-        #salvar la ubicacion
-        alerta = Ubicacion.objects.create(
+        #salvar la ubicacion de la alerta
+        ubicacion = Ubicacion.objects.create(
             alerta= obj,
             latitud= data['latitud'],
             longitud= data['longitud'],
             fecha_hora= data['fecha_hora'],
         )
-        alerta.save()
+        ubicacion.save()
+
+        return ubicacion
+
+"""Serializer para que el dispositivo sepa si la alerta fue desactivada"""
+class alertaDesactivacionSerializer(serializers.ModelSerializer):
+    
+    class Meta:
+        model = DispositivoRastreador
+        fields = (
+            'numero_serie',
+            'estado',
+        )
 
 
 
 
-"""
-class alertaDesactivacionSerializer(serializers.Serializer):
+"""Serializer para llenar los cuestionarios"""
+class cuestionarioSerializer(serializers.Serializer):
     pass
-"""

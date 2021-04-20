@@ -1,9 +1,7 @@
 Desarrollo de la PWA
-# commandos necesarios para su funcionamiento
-
-# credenciales
-# username: prueba
-# pass : qwert1admin
-# email: jm_enriquez@hotmail.com
+# credenciales de superuser
+username: usermartin
+email: jm_enriquez@hotmail.com
+pass : qwert1admin
 
 

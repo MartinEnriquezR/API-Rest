@@ -42,7 +42,6 @@ INSTALLED_APPS = [
     #aplicaciones creadas
     'catalogo',
     'sistema',
-    'auditoria',
     #django rest framework
     'rest_framework',
     'rest_framework.authtoken'
