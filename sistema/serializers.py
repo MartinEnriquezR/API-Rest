@@ -110,6 +110,37 @@ class personaSignupSerializer(serializers.Serializer):
         token, created = Token.objects.get_or_create(user=self.context['persona'])
         return persona, token.key
 
+"""Serializer para cambiar el password de una persona"""
+class cambiarPasswordSerializer(serializers.Serializer):
+    username = serializers.CharField()
+    password = serializers.CharField(min_length=8)
+    password_confirmation = serializers.CharField(min_length=8)
+
+    def validate(self,data):
+        
+        #validar el password
+        passwd = data['password']
+        passwdConf = data['password_confirmation']
+
+        #validar que el password nuevo sea igual
+        if passwd != passwdConf:
+            raise serializers.ValidationError('El password nuevo debe de ser igual')
+
+        #validar que el password no sea muy comun
+        password_validation.validate_password(passwd)
+        
+        return data
+
+    def create(self,data):
+        
+        #instancia de la persona
+        persona = Persona.objects.get(username=data['username'])
+
+        #guardar el password nuevo
+        persona.set_password(data['password'])
+        persona.save()
+        
+        return persona
 
 
 

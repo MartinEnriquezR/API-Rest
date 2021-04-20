@@ -33,7 +33,7 @@ class personaViewSet(mixins.RetrieveModelMixin,
     def get_permissions(self):
         if self.action in ['login','signup']:
             permissions = [AllowAny]
-        elif self.action in ['retrieve','update','destroy','partial_update']:
+        elif self.action in ['retrieve','update','destroy','partial_update','cambiarPassword']:
             permissions = [IsAuthenticated, IsAccountOwner]
         else:
             permissions = [IsAuthenticated]
@@ -63,6 +63,22 @@ class personaViewSet(mixins.RetrieveModelMixin,
         }
         return Response(data,status=status.HTTP_201_CREATED)
 
+    @action(detail=False, methods=['patch'], url_path='cambiar-password')
+    def cambiarPassword(self,request,*args,**kwargs):
+        #parametros [password] y [password_confirmation]
+
+        persona = get_object_or_404(Persona,email=request.user)
+        self.request.data['username'] = persona.username
+
+        serializer = cambiarPasswordSerializer(data = request.data)
+        serializer.is_valid(raise_exception = True)
+        persona = serializer.save()
+        
+        data ={
+            'persona' : personaSerializer(persona).data
+        }
+        
+        return Response(data, status=status.HTTP_200_OK)
 
 
 class usuariaViewSet(viewsets.GenericViewSet):
