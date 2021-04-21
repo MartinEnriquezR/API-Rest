@@ -81,6 +81,7 @@ class personaViewSet(mixins.RetrieveModelMixin,
         return Response(data, status=status.HTTP_200_OK)
 
 
+
 class usuariaViewSet(viewsets.GenericViewSet):
     
 
@@ -396,16 +397,31 @@ class alertaViewSet(viewsets.GenericViewSet):
         
         return Response(data, status = estado)
 
+    """funcion para saber si hay una alerta nueva
+        se tiene que buscar a que grupos pertenece el usuario
+        a cada administradora se le busca el estado o estados del dispostivo 
+        
+        si tiene el estado ACTIVADO busca el grupo
+        con el grupo se busca la alerta mas reciente por medio de la primera hora registrada
+        se devuelve informacion basica de la alerta para la notificacion
+        [nombre_alerta] [nombre_grupo] [usuaria] [fecha_hora]
 
+        si tiene el estado DESACTIVADO no se devuelve nada sobre ese grupo
+    """
+    @action(detail=False,methods=['get'],url_path='notificacion-alerta')
+    def notificacionAlerta(self,request,*args,**kwargs):
+        
+        #grupo o grupos donde se encuentra la persona
+        try:
+            grupo = Grupo.objects.filter(integrantes__email=request.user)
+            
 
-class cuestionarioViewSet(viewsets.GenericViewSet):
-    
-    permission_classes = [AllowAny]
+        except Grupo.DoesNotExist:
+            data = None
+            estado = status.HTTP_404_NOT_FOUND
+        
+        return Response(data,status=estado)
 
-    def create(self,request,*args,**kwargs):
-        #
-
-        return Response()
 
 
 

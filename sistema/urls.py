@@ -15,7 +15,7 @@ router.register(r'usuaria',usuariaViewSet,basename='usuaria')
 router.register(r'dispositivo',dispositivoViewSet,basename='dispositivo')
 router.register(r'grupo',grupoViewSet,basename='grupo')
 router.register(r'alerta',alertaViewSet,basename='alerta')
-router.register(r'cuestionario',cuestionarioViewSet,basename='cuestionario')
+#router.register(r'cuestionario',cuestionarioViewSet,basename='cuestionario')
 
 
 
