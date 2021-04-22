@@ -368,7 +368,16 @@ class grupoViewSet(viewsets.GenericViewSet):
 """
 class alertaViewSet(viewsets.GenericViewSet):
     
-    permission_classes = [AllowAny]
+    """Los permisos de publicar y desactivar no necesitan autentificacion"""
+    def get_permissions(self):
+        if self.action in ['publicar','desactivacion']:
+            permissions = [AllowAny]
+        elif self.action in ['notificacionAlerta']:
+            permissions = [IsAuthenticated,IsAccountOwner]
+        else:
+            permissions = [IsAuthenticated]
+        return [p() for p in permissions]
+
 
     @action(detail=False, methods=['post'])
     def publicar(self,request,*args,**kwargs):
@@ -397,7 +406,11 @@ class alertaViewSet(viewsets.GenericViewSet):
         
         return Response(data, status = estado)
 
-    """funcion para saber si hay una alerta nueva
+    """funcion [saber si existe una alerta o alertas en los grupos]
+        [buscar el grupo o grupos donde se encuentra la persona]
+        [buscar la usuaria o usuarias dueña o dueñas del grupo]
+        [buscar el estado de su dispositivo o dispositivos]
+        {traer el }
         se tiene que buscar a que grupos pertenece el usuario
         a cada administradora se le busca el estado o estados del dispostivo 
         
@@ -411,16 +424,26 @@ class alertaViewSet(viewsets.GenericViewSet):
     @action(detail=False,methods=['get'],url_path='notificacion-alerta')
     def notificacionAlerta(self,request,*args,**kwargs):
         
-        #grupo o grupos donde se encuentra la persona
+        #instancia de la persona
         try:
-            grupo = Grupo.objects.filter(integrantes__email=request.user)
-            
+            persona = get_object_or_404(Persona,email=request.user)
+            try:
+                grupos = Grupo.objects.select_related('usuaria').filter(integrantes__username=persona.username)
+                for grupo in grupos:
+                    try:
+                        dispositivo = DispositivoRastreador.objects.filter(usuaria=grupo.usuaria)
+                        print(dispositivo.estado)
+                    except DispositivoRastreador.DoesNotExist:
+                        estado = status.HTTP_404_NOT_FOUND
 
-        except Grupo.DoesNotExist:
-            data = None
-            estado = status.HTTP_404_NOT_FOUND
+            except Grupo.DoesNotExist:
+                estado = status.HTTP_404_NOT_FOUND
+
+        except Persona.DoesNotExist:
+                estado = status.HTTP_404_NOT_FOUND
         
-        return Response(data,status=estado)
+        
+        return Response('notificacion')
 
 
 
