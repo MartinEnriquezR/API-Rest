@@ -79,7 +79,6 @@ class Usuaria(models.Model):
 class DispositivoRastreador(models.Model):
     
     numero_serie = models.IntegerField(primary_key=True)
-    estado = models.CharField(max_length=20, blank=True, null=True)
     pin_desactivador = models.IntegerField(blank=True, null=True)
     #llaves foraneas
     usuaria = models.ForeignKey(Usuaria, models.SET_NULL, blank=True, null=True)
@@ -89,7 +88,6 @@ class DispositivoRastreador(models.Model):
 
     REQUIRED_FIELDS=[
         'numero_serie',
-        'estado',
         'pin_desactivador',
         'usuaria'
     ]
@@ -100,14 +98,16 @@ class Grupo(models.Model):
     usuaria = models.OneToOneField('Usuaria', on_delete=models.CASCADE)
     nombre = models.CharField(max_length = 20)
     clave_acceso = models.CharField(max_length = 6, unique = True)
+    estado_alerta = models.BooleanField(default=False)
     integrantes = models.ManyToManyField(Persona, through='Miembros', blank=True)
 
     class Meta:
         db_table = 'GRUPO'
     
     REQUIRED_FIELDS=[
-        'nombre_grupo',
+        'nombre',
         'clave_acceso',
+        'estado_alerta',
         'usuaria'
     ]
 
@@ -130,11 +130,12 @@ class Miembros(models.Model):
 class Alerta(models.Model):
     grupo = models.ForeignKey(Grupo, on_delete=models.CASCADE)
     nombre_alerta = models.CharField(max_length=30)
+    fecha_hora = models.DateTimeField()
 
     class Meta:
         db_table = 'ALERTA'
 
-    REQUIRED_FIELDS=['grupo','nombre_alerta']
+    REQUIRED_FIELDS=['grupo','nombre_alerta','fecha_hora']
 
 #si se borra la alerta, las ubicaciones se deben de borrar
 class Ubicacion(models.Model):

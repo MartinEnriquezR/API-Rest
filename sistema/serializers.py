@@ -372,7 +372,6 @@ class dispositivoInformacionSerializer(serializers.ModelSerializer):
         model = DispositivoRastreador
         fields = (
             'numero_serie',
-            'estado',
             'pin_desactivador'
         )
 
@@ -407,7 +406,6 @@ class dispositivoAsociarSerializer(serializers.Serializer):
         #modificar el registro del dispositivo
         dispositivo.usuaria = usuaria
         dispositivo.pin_desactivador = data['pin_desactivador']
-        dispositivo.estado = 'Desactivado'
         dispositivo.save()
 
         return dispositivo
@@ -451,7 +449,6 @@ class dispositivoDesasociarSerializer(serializers.Serializer):
             usuaria = usuaria
         )
 
-        dispositivo.estado = None
         dispositivo.pin_desactivador = None
         dispositivo.usuaria = None
 
@@ -777,6 +774,7 @@ class alertaPublicarSerializer(serializers.Serializer):
     latitud = serializers.DecimalField(max_digits=8, decimal_places=6)
     longitud = serializers.DecimalField(max_digits=9, decimal_places=6)
     fecha_hora = serializers.DateTimeField()
+    fecha_hora_inicio = serializers.DateTimeField()
 
     def validate(self,data):
         
@@ -798,17 +796,18 @@ class alertaPublicarSerializer(serializers.Serializer):
         dispositivo = DispositivoRastreador.objects.get(numero_serie = data['numero_serie'])
         usuaria = dispositivo.usuaria
 
-        #Activar la alerta dentro del registro del dispositivo
-        dispositivo.estado = 'Activado'
-        dispositivo.save()
-
         #Grupo que administra la usuaria
         grupo = Grupo.objects.get(usuaria=usuaria)
+
+        #Activar la alerta dentro del grupo
+        grupo.estado_alerta = True
+        grupo.save()
 
         #crear la instancia de la alerta, si ya existe devolver la instancia 
         obj, created = Alerta.objects.get_or_create(
             grupo=grupo,
-            nombre_alerta=data['nombre_alerta']
+            nombre_alerta=data['nombre_alerta'],
+            fecha_hora=data['fecha_hora_inicio']
         )
 
         #salvar la ubicacion de la alerta
@@ -823,13 +822,21 @@ class alertaPublicarSerializer(serializers.Serializer):
         return ubicacion
 
 """Serializer para que el dispositivo sepa si la alerta fue desactivada"""
-class alertaDesactivacionSerializer(serializers.ModelSerializer):
-    
+class grupoDesactivacionSerializer(serializers.ModelSerializer):
+
     class Meta:
-        model = DispositivoRastreador
+        model = Grupo
         fields = (
-            'numero_serie',
-            'estado',
+            'estado_alerta',
+        )
+
+class alertaActivaSerializer(serializers.ModelSerializer):
+
+    class Meta:
+        model = Alerta
+        fields = (
+            'nombre_alerta',
+            'fecha_hora'
         )
 
 

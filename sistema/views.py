@@ -198,17 +198,16 @@ class dispositivoViewSet(viewsets.GenericViewSet):
 
         return Response(data,status=status.HTTP_200_OK)
 
-    @action(detail=False,methods=['get'])
+    @action(detail=False,methods=['get'],url_path='mis-dispositivos')
     def misDispositivos(self,request,*args,**kwargs):
 
         #instancia de la persona
         persona = get_object_or_404(Persona,email=self.request.user)
         usuaria = get_object_or_404(Usuaria,persona=persona)
         
-        #traer el dispositivo o dispositivo que tiene la usuaria
+        #traer el dispositivo o dispositivos que tiene la usuaria
         try:
             dispositivos = DispositivoRastreador.objects.filter(usuaria=usuaria)
-
             serializer = dispositivoInformacionSerializer(dispositivos,many=True)
             data = serializer.data
             estado = status.HTTP_200_OK
@@ -272,24 +271,23 @@ class grupoViewSet(viewsets.GenericViewSet):
 
         return Response(status=status.HTTP_204_NO_CONTENT)
 
-    @action(detail=False,methods=['patch'])
-    def unirme(self,request,*args,**kwargs):
-        #parametros [clave de acceso]
-        
-        persona = get_object_or_404(Persona, email = request.user)
+    @action(detail=False,methods=['patch'],url_path='cambiar-nombre')
+    def nombre(self,request,*args,**kwargs):
+        #[nombre] nombre del grupo nuevo
+
+        persona = get_object_or_404(Persona, email=self.request.user)
         self.request.data['username'] = persona.username
 
-        serializer = grupoUnirSerializer(data = request.data)
+        serializer = grupoNombreSerializer(data = request.data)
         serializer.is_valid(raise_exception = True)
-        grupo = serializer.save() 
+        grupo = serializer.save()
 
         data = {
-            'grupo': grupoInformacionPersonaSerializer(grupo).data
+            'informacion_grupo' : grupoInformacionSerializer(grupo).data
         }
-
         return Response(data, status=status.HTTP_200_OK)
 
-    @action(detail=False,methods=['patch'])
+    @action(detail=False,methods=['patch'],url_path='expulsar-miembro')
     def expulsar(self,request,*args,**kwargs):
         #parametros [username] de la persona la usuaria quiere expulsar
 
@@ -307,19 +305,20 @@ class grupoViewSet(viewsets.GenericViewSet):
         return Response(data, status=status.HTTP_200_OK)
 
     @action(detail=False,methods=['patch'])
-    def nombre(self,request,*args,**kwargs):
-        #[nombre] nombre del grupo nuevo
-
-        persona = get_object_or_404(Persona, email=self.request.user)
+    def unirme(self,request,*args,**kwargs):
+        #parametros [clave de acceso]
+        
+        persona = get_object_or_404(Persona, email = request.user)
         self.request.data['username'] = persona.username
 
-        serializer = grupoNombreSerializer(data = request.data)
+        serializer = grupoUnirSerializer(data = request.data)
         serializer.is_valid(raise_exception = True)
-        grupo = serializer.save()
+        grupo = serializer.save() 
 
         data = {
-            'informacion_grupo' : grupoInformacionSerializer(grupo).data
+            'grupo': grupoInformacionPersonaSerializer(grupo).data
         }
+
         return Response(data, status=status.HTTP_200_OK)
 
     @action(detail=False,methods=['get'],url_path='mis-grupos')
@@ -378,7 +377,7 @@ class alertaViewSet(viewsets.GenericViewSet):
             permissions = [IsAuthenticated]
         return [p() for p in permissions]
 
-
+    """Publicar desde el dispositivo las ubicaciones de la alerta producida"""
     @action(detail=False, methods=['post'])
     def publicar(self,request,*args,**kwargs):
 
@@ -388,62 +387,49 @@ class alertaViewSet(viewsets.GenericViewSet):
 
         return Response(status=status.HTTP_200_OK)
 
-    #se ve si la alerta fue desactivada
+    """El dispositivo visualiza si la alerta ha sido desactivada"""
     @action(detail=False, methods=['get'])
     def desactivacion(self,request,*args,**kwargs):
         
-        #obtener la instancia del dispositivo Dispositivo
+        #obtener la instancia del dispositivo rastreador
         try:
             dispositivo = get_object_or_404(DispositivoRastreador,numero_serie=request.data['numero_serie'])
-            #traer la informacion del dispositivo
-            serializer = alertaDesactivacionSerializer(dispositivo)
+            grupo = get_object_or_404(Grupo,usuaria=dispositivo.usuaria)
+            serializer = grupoDesactivacionSerializer(grupo)
             data = serializer.data
             estado = status.HTTP_200_OK
 
-        except DispositivoRastreador.DoesNotExist:
+        except:
             data = None
             estado = status.HTTP_404_NOT_FOUND
-        
-        return Response(data, status = estado)
 
-    """funcion [saber si existe una alerta o alertas en los grupos]
-        [buscar el grupo o grupos donde se encuentra la persona]
-        [buscar la usuaria o usuarias dueña o dueñas del grupo]
-        [buscar el estado de su dispositivo o dispositivos]
-        {traer el }
-        se tiene que buscar a que grupos pertenece el usuario
-        a cada administradora se le busca el estado o estados del dispostivo 
-        
-        si tiene el estado ACTIVADO busca el grupo
-        con el grupo se busca la alerta mas reciente por medio de la primera hora registrada
-        se devuelve informacion basica de la alerta para la notificacion
-        [nombre_alerta] [nombre_grupo] [usuaria] [fecha_hora]
+        return Response(data,status=estado)
 
-        si tiene el estado DESACTIVADO no se devuelve nada sobre ese grupo
-    """
+    """El contacto debe de visualizar el nombre y hora de la alerta"""
     @action(detail=False,methods=['get'],url_path='notificacion-alerta')
     def notificacionAlerta(self,request,*args,**kwargs):
-        
+        data = {}
+
         #instancia de la persona
-        try:
-            persona = get_object_or_404(Persona,email=request.user)
-            try:
-                grupos = Grupo.objects.select_related('usuaria').filter(integrantes__username=persona.username)
-                for grupo in grupos:
-                    try:
-                        dispositivo = DispositivoRastreador.objects.filter(usuaria=grupo.usuaria)
-                        print(dispositivo.estado)
-                    except DispositivoRastreador.DoesNotExist:
-                        estado = status.HTTP_404_NOT_FOUND
+        persona = get_object_or_404(Persona,email=self.request.user)
 
-            except Grupo.DoesNotExist:
-                estado = status.HTTP_404_NOT_FOUND
+        #grupo o grupos en los que se encuentra la persona
+        #grupos con la alerta en True
+        grupos = Grupo.objects.filter(integrantes=persona,estado_alerta=True)
 
-        except Persona.DoesNotExist:
-                estado = status.HTTP_404_NOT_FOUND
+        for grupo in grupos:
+            #la ultima alerta producida dentro de ese grupo
+            alerta = Alerta.objects.filter(grupo=grupo).order_by('fecha_hora').last()
+            
+            s = grupoInformacionPersonaSerializer(grupo)
+            s2 = alertaActivaSerializer(alerta)
+            data[str(grupo)] = s.data
+            data[str(grupo) + 'w'] = s2.data
+
+        print(data)
         
-        
-        return Response('notificacion')
+
+        return Response(data)
 
 
 
