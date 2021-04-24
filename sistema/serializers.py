@@ -830,15 +830,37 @@ class grupoDesactivacionSerializer(serializers.ModelSerializer):
             'estado_alerta',
         )
 
-class alertaActivaSerializer(serializers.ModelSerializer):
+"""Serializer para devolver las alertas activas de cada grupo en el que este una persona"""
+class alertaGrupoSerializer(serializers.ModelSerializer):
+    grupo = misGruposSerializer()
 
     class Meta:
         model = Alerta
         fields = (
+            'grupo',
             'nombre_alerta',
-            'fecha_hora'
+            'fecha_hora',
         )
 
+"""Serializer para devolver la trayectoria de una alerta"""
+class trayectoriaSerializer(serializers.ModelSerializer):
+
+    class Meta:
+        model = Ubicacion
+        fields = (
+            'latitud',
+            'longitud',
+            'fecha_hora',
+        )
+
+"""Informacion que visualiza la usuaria de su alerta mas reciente"""
+class alertaSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Alerta
+        fields=(
+            'nombre_alerta',
+            'fecha_hora',
+        )
 
 
 

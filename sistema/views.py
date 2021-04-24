@@ -409,31 +409,96 @@ class alertaViewSet(viewsets.GenericViewSet):
     @action(detail=False,methods=['get'],url_path='notificacion-alerta')
     def notificacionAlerta(self,request,*args,**kwargs):
         data = {}
-
+        indice = 1
         #instancia de la persona
         persona = get_object_or_404(Persona,email=self.request.user)
 
-        #grupo o grupos en los que se encuentra la persona
-        #grupos con la alerta en True
-        grupos = Grupo.objects.filter(integrantes=persona,estado_alerta=True)
+        try:
+            #grupo o grupos en los que se encuentra la persona y que tienen la alerta activa
+            grupos = Grupo.objects.filter(integrantes=persona,estado_alerta=True)
 
-        for grupo in grupos:
-            #la ultima alerta producida dentro de ese grupo
-            alerta = Alerta.objects.filter(grupo=grupo).order_by('fecha_hora').last()
-            
-            s = grupoInformacionPersonaSerializer(grupo)
-            s2 = alertaActivaSerializer(alerta)
-            data[str(grupo)] = s.data
-            data[str(grupo) + 'w'] = s2.data
-
-        print(data)
+            #se recupera la informacion de la ultima alerta que tenga el grupo
+            for grupo in grupos:
+                alerta = Alerta.objects.filter(grupo=grupo).order_by('fecha_hora').last()        
+                serializer = alertaGrupoSerializer(alerta)
+                data[str(indice)]= serializer.data
+                indice +=1
         
+            estado=status.HTTP_200_OK
 
-        return Response(data)
+        except:
+            data=None
+            estado=status.HTTP_404_NOT_FOUND
 
+        return Response(data,status=estado)
 
+    """El contacto visualiza la trayectoria de la alerta mas reciente"""
+    @action(detail=False,methods=['get'])
+    def trayectoria(self,request,*args,**kwargs):
+        #parametros [username] de la usuaria que tiene la alerta activa
+        #[nombre_alerta] la cual por la funcion de motificacionAlerta debe ser la ultima
+        #en la PWA se debe de mostrar la ultima alerta del grupo y sus ubicaciones
 
+        #instancia de la persona
+        miembro = get_object_or_404(Persona,email=self.request.user)
 
+        #instancia de la usuaria
+        admin = get_object_or_404(Persona,username=self.request.data['username'])
+        usuaria = get_object_or_404(Usuaria,persona=admin)
+        
+        #encontrar ese grupo con la usuaria y el miembro
+        grupo = get_object_or_404(Grupo,usuaria=usuaria,integrantes=miembro)
 
+        #alerta con el grupo y el nombre de la alerta
+        alerta = get_object_or_404(Alerta,grupo=grupo,nombre_alerta=self.request.data['nombre_alerta'])
 
+        #traer las ubicaciones de esa alerta
+        ubicaciones = Ubicacion.objects.filter(alerta=alerta)
+        serializer = trayectoriaSerializer(ubicaciones,many=True)
+        data = serializer.data
+
+        return Response(data,status=status.HTTP_200_OK)
+
+    """Brindar informacion de la ultima alerta a la usuaria"""
+    @action(detail=False,methods=['get'],url_path='mi-alerta')
+    def miAlerta(self,request,*args,**kwargs):
+        
+        #instancia de la usuaria
+        persona = get_object_or_404(Persona,email=self.request.user)
+        usuaria = get_object_or_404(Usuaria,persona=persona)
+
+        #grupo de la usuaria
+        grupo = get_object_or_404(Grupo,usuaria=usuaria,estado_alerta=True)
+
+        #alerta mas reciente
+        alerta = Alerta.objects.filter(grupo=grupo).order_by('fecha_hora').last()
+
+        #informacion de la alerta
+        serializer = alertaSerializer(alerta)
+        data = serializer.data
+
+        return Response(data,status=status.HTTP_200_OK)
+
+    """Permitir a la usuaria desactivar su alerta"""
+    @action(detail=False,methods=['post'],url_path='desactivar')
+    def desactivarAlerta(self, request,*args,**kwargs):
+        #[nombre_alerta] que debe de ser la mas reciente
+
+        #instancia del grupo
+        persona = get_object_or_404(Persona,email=self.request.user)
+        usuaria = get_object_or_404(Usuaria, persona = persona)
+        grupo = get_object_or_404(Grupo,usuaria = usuaria,estado_alerta=True)
+
+        #verificar que el nombre de la alerta coincida con la mas reciente
+        alerta = Alerta.objects.filter(grupo=grupo).order_by('fecha_hora').last()
+        if alerta.nombre_alerta != self.request.data['nombre_alerta']:
+            estado = status.HTTP_404_NOT_FOUND
+        else:
+            #desactivar el estado de la alerta
+            grupo.estado_alerta = False
+            grupo.save()
+            #borrar la alerta
+            alerta.delete()
+
+        return Response(status=estado)
 
