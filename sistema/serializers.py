@@ -862,8 +862,333 @@ class alertaSerializer(serializers.ModelSerializer):
             'fecha_hora',
         )
 
+"""Serializer desactivar la alerta"""
+class desactivarAlertaSerializer(serializers.Serializer):
+    username = serializers.CharField()
+    nombre_alerta= serializers.CharField(max_length=30)
+    pin_desactivador=serializers.IntegerField()
+
+    def validate(self,data):
+        
+        #instancia de la usuaria
+        persona = Persona.objects.get(username=data['username'])
+        usuaria = Usuaria.objects.get(persona=persona)
+
+        #validar que el grupo de la usuaria tenga la alerta activa
+        try:
+            grupo = Grupo.objects.get(usuaria=usuaria,estado_alerta=True)
+        except Grupo.DoesNotExist:
+            raise serializers.ValidationError('Este grupo no tiene ninguna alerta activa')
+        
+        #encontrar un dispositivo o dispositivos de la usuaria que coincida con el pin desactivador
+        d = DispositivoRastreador.objects.filter(usuaria=usuaria,pin_desactivador=data['pin_desactivador'])
+        if not d:
+            raise serializers.ValidationError('Pin incorrecto')
+        
+        #validar que la alerta exista
+        try:
+            Alerta.objects.get(grupo=grupo,nombre_alerta=data['nombre_alerta'])
+        except Alerta.DoesNotExist:
+            raise serializers.ValidationError('Esta alerta no existe')
+        
+
+        return data
 
 
-"""Serializer para llenar los cuestionarios"""
-class cuestionarioSerializer(serializers.Serializer):
-    pass
+
+
+"""Serializer para que el usuario vea informacion de la alerta dentro del cuestionario"""
+class alertaCuestionarioSerializer(serializers.ModelSerializer):
+
+    class Meta:
+        model = Alerta
+        fields = (
+            'nombre_alerta',
+            'fecha_hora',
+        )
+
+"""Serializer del cuestionario"""
+class cuestionarioSerializer(serializers.ModelSerializer):
+    alerta = alertaCuestionarioSerializer()
+    circunstancia = CircunstanciaSerializer()
+    lazo = LazoSerializer()
+
+    class Meta:
+        model = Cuestionario
+        fields = (
+            'alerta',
+            'descripcion',
+            'autoridad_denuncia',
+            'modelo_vehiculo',
+            'violencia',
+            'acompanar',
+            'denuncia_previa',
+            'manejaba_auto',
+            'estado_usuaria',
+            'circunstancia',
+            'lazo',
+        )
+
+"""Serializer para contestar cuestionarios"""
+class cuestionarioCrearSerializer(serializers.Serializer):
+    username_usuaria = serializers.CharField() 
+    username_persona = serializers.CharField()
+    nombre_alerta = serializers.CharField(max_length=30)
+
+    #datos del cuestionario
+    descripcion = serializers.CharField(max_length=2000,allow_blank=True)
+    autoridad_denuncia = serializers.CharField(max_length=50,allow_blank=True)
+    modelo_vehiculo = serializers.CharField(max_length=50,allow_blank=True)
+    violencia = serializers.CharField(max_length=2,allow_blank=True)
+    acompanar = serializers.CharField(max_length=2,allow_blank=True)
+    denuncia_previa = serializers.CharField(max_length=2,allow_blank=True)
+    manejaba_auto = serializers.CharField(max_length=2,allow_blank=True)
+    estado_usuaria = serializers.CharField(max_length=15)
+
+    tipo_circunstancia = serializers.CharField(max_length=100)
+    lazo = serializers.CharField(max_length=30)
+
+    def validate(self,data):
+        
+        #saber si existe el tipo de circunstancia 
+        try:
+            Circunstancia.objects.get(tipo_circunstancia=data['tipo_circunstancia'])
+        except Circunstancia.DoesNotExist:
+            raise serializers.ValidationError('Este tipo de circunstancia no se encuentra registrada')
+
+        #saber si existe el lazo
+        try:
+            Lazo.objects.get(lazo=data['lazo'])
+        except Lazo.DoesNotExist:
+            raise serializers.ValidationError('Este lazo no se encuentra registrado')
+
+        #saber si el grupo existe
+        #saber si el grupo tiene una alerta activa 
+        try:
+            admin = Persona.objects.get(username=data['username_usuaria'])
+            usuaria = Usuaria.objects.get(persona=admin)
+            grupo = Grupo.objects.get(usuaria=usuaria,estado_alerta=True)
+        except:
+            raise serializers.ValidationError('Informacion del grupo incorrecta')
+
+        #saber si existe una alerta con este nombre
+        #saber si la alerta forma parte de este grupo
+        try:
+            alerta = Alerta.objects.get(grupo=grupo,nombre_alerta=data['nombre_alerta'])
+        except Alerta.DoesNotExist:
+            raise serializers.ValidationError('Informacion de la alerta incorrecta')
+
+        #saber si la persona es miembro de este grupo
+        try:
+            persona = Persona.objects.get(username=data['username_persona'])
+            miembro = Miembros.objects.get(grupo=grupo,persona=persona)
+        except:
+            raise serializers.ValidationError('Esta persona no es miembro del grupo')
+
+        #saber si no ha contestado este cuestionario previamente
+        try:
+            Cuestionario.objects.get(alerta=alerta,miembro=miembro)
+            raise serializers.ValidationError('Ya respondiste este cuestionario')
+        except Cuestionario.DoesNotExist:
+            pass
+
+        return data
+
+    def create(self,data):
+        
+        #instancia del tipo de circunstancia
+        circunstancia = Circunstancia.objects.get(tipo_circunstancia=data['tipo_circunstancia'])
+
+        #instancia del lazo
+        lazo = Lazo.objects.get(lazo=data['lazo'])
+
+        #instancia del grupo
+        admin = Persona.objects.get(username=data['username_usuaria'])
+        usuaria = Usuaria.objects.get(persona=admin)
+        grupo = Grupo.objects.get(usuaria=usuaria)
+
+        #instancia de la alerta
+        alerta = Alerta.objects.get(grupo=grupo,nombre_alerta=data['nombre_alerta'])
+
+        #instancia del miembro
+        persona = Persona.objects.get(username=data['username_persona'])
+        miembro = Miembros.objects.get(persona=persona,grupo=grupo)
+
+        data.pop('username_usuaria')
+        data.pop('username_persona')
+        data.pop('nombre_alerta')
+        data.pop('tipo_circunstancia')
+        data.pop('lazo')
+        
+        #creacion del cuestionario
+        cuestionario = Cuestionario.objects.create(
+            miembro=miembro,
+            alerta=alerta,
+            **data,
+            circunstancia=circunstancia,
+            lazo=lazo
+        )
+
+        return cuestionario
+
+"""Serializer para actualizar el cuestionario"""
+class cuestionarioActualizarSerializer(serializers.Serializer):
+    username_usuaria = serializers.CharField() 
+    username_persona = serializers.CharField()
+    nombre_alerta = serializers.CharField(max_length=30)
+    
+    #datos del cuestionario
+    descripcion = serializers.CharField(max_length=2000,allow_blank=True)
+    autoridad_denuncia = serializers.CharField(max_length=50,allow_blank=True)
+    modelo_vehiculo = serializers.CharField(max_length=50,allow_blank=True)
+    violencia = serializers.CharField(max_length=2,allow_blank=True)
+    acompanar = serializers.CharField(max_length=2,allow_blank=True)
+    denuncia_previa = serializers.CharField(max_length=2,allow_blank=True)
+    manejaba_auto = serializers.CharField(max_length=2,allow_blank=True)
+    estado_usuaria = serializers.CharField(max_length=15)
+
+    #datos del cuestionario que son llaves foraneas
+    tipo_circunstancia = serializers.CharField(max_length=100)
+    lazo = serializers.CharField(max_length=30)
+
+    def validate(self,data):
+        
+        #saber si existe el tipo de circunstancia 
+        try:
+            Circunstancia.objects.get(tipo_circunstancia=data['tipo_circunstancia'])
+        except Circunstancia.DoesNotExist:
+            raise serializers.ValidationError('Este tipo de circunstancia no se encuentra registrada')
+
+        #saber si existe el lazo
+        try:
+            Lazo.objects.get(lazo=data['lazo'])
+        except Lazo.DoesNotExist:
+            raise serializers.ValidationError('Este lazo no se encuentra registrado')
+
+        #saber si el grupo existe
+        #saber si el grupo tiene una alerta activa 
+        try:
+            admin = Persona.objects.get(username=data['username_usuaria'])
+            usuaria = Usuaria.objects.get(persona=admin)
+            grupo = Grupo.objects.get(usuaria=usuaria,estado_alerta=True)
+        except:
+            raise serializers.ValidationError('Informacion del grupo incorrecta')
+
+        #saber si existe una alerta con este nombre
+        #saber si la alerta forma parte de este grupo
+        try:
+            alerta = Alerta.objects.get(grupo=grupo,nombre_alerta=data['nombre_alerta'])
+        except Alerta.DoesNotExist:
+            raise serializers.ValidationError('Informacion de la alerta incorrecta')
+
+        #saber si la persona es miembro de este grupo
+        try:
+            persona = Persona.objects.get(username=data['username_persona'])
+            miembro = Miembros.objects.get(grupo=grupo,persona=persona)
+        except:
+            raise serializers.ValidationError('Esta persona no es miembro del grupo')
+
+        #saber si ya ha contestado el cuestionario
+        try:
+            Cuestionario.objects.get(alerta=alerta,miembro=miembro)
+        except Cuestionario.DoesNotExist:
+            raise serializers.ValidationError('Aun no haz contestado el cuestionario')
+
+        return data
+
+    def create(self,data):
+        #instancia de la circunstancia
+        circunstancia = Circunstancia.objects.get(tipo_circunstancia=data['tipo_circunstancia'])
+
+        #instacia del lazo
+        lazo = Lazo.objects.get(lazo=data['lazo'])
+
+        #grupo de la usuaria
+        admin = Persona.objects.get(username=data['username_usuaria'])
+        usuaria = Usuaria.objects.get(persona=admin)
+        grupo = Grupo.objects.get(usuaria=usuaria)
+
+        #instancia de la alerta
+        alerta = Alerta.objects.get(grupo=grupo,nombre_alerta=data['nombre_alerta'])
+        
+        #instancia del miembro
+        persona = Persona.objects.get(username=data['username_persona'])
+        miembro = Miembros.objects.get(persona=persona,grupo=grupo)
+
+        #instancia del cuestionario
+        cuestionario = Cuestionario.objects.get(alerta=alerta,miembro=miembro)
+
+        #modificar datos de este cuestionario
+        cuestionario.descripcion = data['descripcion']
+        cuestionario.autoridad_denuncia =data['autoridad_denuncia']
+        cuestionario.modelo_vehiculo =data['modelo_vehiculo']
+        cuestionario.violencia =data['violencia']
+        cuestionario.acompanar =data['acompanar']
+        cuestionario.denuncia_previa =data['denuncia_previa']
+        cuestionario.manejaba_auto =data['manejaba_auto']
+        cuestionario.estado_usuaria =data['estado_usuaria']
+
+        cuestionario.circunstancia = circunstancia
+        cuestionario.lazo = lazo
+        cuestionario.save()
+
+        return cuestionario
+
+"""Serializer para traer el cuestionario llenado por un miembro"""
+class miCuestionarioSerializer(serializers.Serializer):
+
+    username_usuaria = serializers.CharField()
+    username_persona = serializers.CharField()
+    nombre_alerta = serializers.CharField()
+
+    def validate(self,data):
+        
+        #encontrar el grupo de la usuaria
+        try:
+            admin = Persona.objects.get(username=data['username_usuaria'])
+            usuaria = Usuaria.objects.get(persona=admin)
+            grupo = Grupo.objects.get(usuaria=usuaria)
+        except:
+            raise serializers.ValidationError('Informacion del grupo invalida')
+
+        #encontrar la alerta
+        try:
+            alerta = Alerta.objects.get(grupo=grupo,nombre_alerta=data['nombre_alerta'])
+        except Alerta.DoesNotExist:
+            raise serializers.ValidationError('Informacion de la alerta invalida')
+
+        #encontrar el miembro
+        try:
+            persona = Persona.objects.get(username=data['username_persona'])
+            miembro = Miembros.objects.get(grupo=grupo,persona=persona)
+        except:
+            raise serializers.ValidationError('No eres parte de este grupo')
+        
+        #encontrar el cuestionario
+        try:
+            cuestionario = Cuestionario.objects.get(miembro=miembro,alerta=alerta)
+        except Cuestionario.DoesNotExist:
+            raise serializers.ValidationError('Aun no haz respondido el cuestionario')
+
+        return data
+
+    def create(self,data):
+
+        #grupo
+        admin = Persona.objects.get(username=data['username_usuaria'])
+        usuaria = Usuaria.objects.get(persona=admin)
+        grupo = Grupo.objects.get(usuaria=usuaria)
+        
+        #alerta
+        alerta = Alerta.objects.get(grupo=grupo,nombre_alerta=data['nombre_alerta'])        
+        
+        #miembro
+        persona = Persona.objects.get(username=data['username_persona'])
+        miembro = Miembros.objects.get(persona=persona,grupo=grupo)
+
+        #cuestionario
+        cuestionario = Cuestionario.objects.get(alerta=alerta,miembro=miembro)
+        
+        return cuestionario
+
+

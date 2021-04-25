@@ -371,7 +371,7 @@ class alertaViewSet(viewsets.GenericViewSet):
     def get_permissions(self):
         if self.action in ['publicar','desactivacion']:
             permissions = [AllowAny]
-        elif self.action in ['notificacionAlerta']:
+        elif self.action in ['notificacionAlerta','trayectoria','miAlerta','desactivarAlerta']:
             permissions = [IsAuthenticated,IsAccountOwner]
         else:
             permissions = [IsAuthenticated]
@@ -480,25 +480,100 @@ class alertaViewSet(viewsets.GenericViewSet):
         return Response(data,status=status.HTTP_200_OK)
 
     """Permitir a la usuaria desactivar su alerta"""
-    @action(detail=False,methods=['post'],url_path='desactivar')
+    @action(detail=False,methods=['delete'],url_path='desactivar')
     def desactivarAlerta(self, request,*args,**kwargs):
         #[nombre_alerta] que debe de ser la mas reciente
-
-        #instancia del grupo
+        #[pin_desactivador] que ingresa la usuaria al dispositivo
+        
+        #Validar que la usuaria existe
         persona = get_object_or_404(Persona,email=self.request.user)
         usuaria = get_object_or_404(Usuaria, persona = persona)
-        grupo = get_object_or_404(Grupo,usuaria = usuaria,estado_alerta=True)
+        self.request.data['username']=persona.username
 
-        #verificar que el nombre de la alerta coincida con la mas reciente
-        alerta = Alerta.objects.filter(grupo=grupo).order_by('fecha_hora').last()
-        if alerta.nombre_alerta != self.request.data['nombre_alerta']:
-            estado = status.HTTP_404_NOT_FOUND
+        #Validar informacion
+        serializer = desactivarAlertaSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        grupo = Grupo.objects.get(usuaria=usuaria,estado_alerta=True)
+        alerta = Alerta.objects.get(grupo=grupo,nombre_alerta=self.request.data['nombre_alerta'])
+
+        #desactivar la alerta
+        grupo.estado_alerta = False
+        grupo.save()
+        #borrar la alerta
+        alerta.delete()
+
+
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+
+
+class cuestionarioViewSet(viewsets.GenericViewSet):
+
+    """Permisos para las actividades"""
+    def get_permissions(self):
+        if self.action in ['create','update']:
+            permissions = [IsAuthenticated,IsAccountOwner]
         else:
-            #desactivar el estado de la alerta
-            grupo.estado_alerta = False
-            grupo.save()
-            #borrar la alerta
-            alerta.delete()
+            permissions = [IsAuthenticated]
+        return [p() for p in permissions]
 
-        return Response(status=estado)
+    def create(self,request,*args,**kwargs):
+        #parametro [username_usuaria] administradora del grupo
+        #parametro [nombre_alerta] que debe de ser la ultima 
 
+        #instancia del miembro
+        miembro = get_object_or_404(Persona,email=self.request.user)
+        self.request.data['username_persona'] = miembro.username
+
+        #serializar la informacion
+        serializer = cuestionarioCrearSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        cuestionario = serializer.save()
+
+        data = {
+            'cuestionario':cuestionarioSerializer(cuestionario).data
+        }
+    
+        return Response(data,status=status.HTTP_201_CREATED)
+
+    @action(detail=False,methods=['put'])
+    def actualizar(self,request,*args,**kwargs):
+        #[username_usuaria] administradora del grupo
+        #[nombre_alerta] que se va a actualizar
+
+        #instancia del miembro
+        miembro = get_object_or_404(Persona,email=self.request.user)
+        self.request.data['username_persona'] = miembro.username
+
+        #serializer para la actualizacion
+        serializer = cuestionarioActualizarSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        cuestionario = serializer.save()
+
+        data = {
+            'cuestionario':cuestionarioSerializer(cuestionario).data
+        }
+
+        return Response(data,status=status.HTTP_200_OK)
+
+    @action(detail=False,methods=['get'],url_path='mi-cuestionario')
+    def miCuestionario(self,request,*args,**kwargs):
+        #[username_usuaria] dueña del grupo
+        #[nombre_alerta] 
+
+        #instancia de la persona
+        persona = get_object_or_404(Persona,email=self.request.user)
+        self.request.data['username_persona'] = persona.username
+
+        #comprobar la informacion
+        serializer = miCuestionarioSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        cuestionario = serializer.save()
+
+        data = {
+            'cuestionario':cuestionarioSerializer(cuestionario).data
+        }
+
+        return Response(data,status=status.HTTP_200_OK)
