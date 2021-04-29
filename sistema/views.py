@@ -12,7 +12,7 @@ from django.shortcuts import get_object_or_404
 #serializers
 from .serializers import *
 
-#modelos 
+#modelos
 from .models import *
 
 #permiso custom
@@ -24,7 +24,7 @@ class personaViewSet(mixins.RetrieveModelMixin,
                      mixins.UpdateModelMixin,
                      mixins.DestroyModelMixin,
                      viewsets.GenericViewSet):
-    
+
     queryset = Persona.objects.all()
     serializer_class = personaSerializer
     lookup_field = 'username'
@@ -73,22 +73,22 @@ class personaViewSet(mixins.RetrieveModelMixin,
         serializer = cambiarPasswordSerializer(data = request.data)
         serializer.is_valid(raise_exception = True)
         persona = serializer.save()
-        
+
         data ={
             'persona' : personaSerializer(persona).data
         }
-        
+
         return Response(data, status=status.HTTP_200_OK)
 
 
 
 class usuariaViewSet(viewsets.GenericViewSet):
-    
+
 
     def get_permissions(self):
         if self.action in ['signup']:
             permissions = [AllowAny]
-        elif self.action in ['informacion','borrar']:
+        elif self.action in ['informacion','borrar','actualizar']:
             permissions = [IsAuthenticated,IsAccountOwner]
         else:
             permissions = [IsAuthenticated]
@@ -114,21 +114,37 @@ class usuariaViewSet(viewsets.GenericViewSet):
 
     @action(detail=False,methods=['delete'])
     def borrar(self,request):
-        
+
         #obtener la instancia de la persona
         persona = get_object_or_404(Persona,email=self.request.user)
         usuaria = get_object_or_404(Usuaria, persona = persona)
-        
+
         #cambiar el estado de una usuaria
         persona.is_usuaria = False
         persona.save()
-        
+
         #se elimina la instancia de la usuaria
         usuaria.delete()
 
         return Response(status=status.HTTP_204_NO_CONTENT)
-    
-    
+
+    @action(detail=False,methods=['patch'])
+    def actualizar(self,request,*args,**kwargs):
+
+        #instancia de la persona
+        persona = get_object_or_404(Persona,email=self.request.user)
+        usuaria = get_object_or_404(Usuaria,persona=persona)
+        self.request.data['username'] = persona.username
+
+        #serializer
+        serializer = usuariaActualizarSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        usuaria = serializer.save()
+
+        data = usuariaSerializer(usuaria).data
+        
+        return Response(data,status=status.HTTP_200_OK)
+
 
 class dispositivoViewSet(viewsets.GenericViewSet):
 
@@ -142,7 +158,7 @@ class dispositivoViewSet(viewsets.GenericViewSet):
     @action(detail=False,methods=['patch'])
     def asociar(self,request,*args,**kwargs):
         #parametros [numero_serie] y el [pin_desactivador] de la usuaria
-        
+
         #validar que la usuaria exista dentro del sistema
         persona = get_object_or_404(Persona,email=self.request.user)
         usuaria = get_object_or_404(Usuaria, persona = persona)
@@ -152,7 +168,7 @@ class dispositivoViewSet(viewsets.GenericViewSet):
 
         serializer = dispositivoAsociarSerializer(data = request.data)
         serializer.is_valid(raise_exception = True)
-        dispositivo = serializer.save()  
+        dispositivo = serializer.save()
 
         data = {
             'dispositivo': dispositivoInformacionSerializer(dispositivo).data
@@ -163,7 +179,7 @@ class dispositivoViewSet(viewsets.GenericViewSet):
     @action(detail=False,methods=['patch'])
     def desasociar(self,request,*args,**kwargs):
         #datos requeridos [numero_serie]
-        
+
         #instancia de la usuaria
         persona = get_object_or_404(Persona,email=self.request.user)
         usuaria = get_object_or_404(Usuaria, persona = persona)
@@ -180,14 +196,14 @@ class dispositivoViewSet(viewsets.GenericViewSet):
     @action(detail=False,methods=['patch'])
     def cambiarpin(self,request,*args,**kwargs):
         #[numero_serie] del dispositivo y el [pin_desactivador] nuevo pin
-        
+
         #instancia de la usuaria
         persona = get_object_or_404(Persona,email = request.user)
         usuaria = get_object_or_404(Usuaria, persona = persona)
 
         #añadir a request.data el username de la usuaria
         self.request.data['username'] = persona.username
-        
+
         serializer = dispositivoPinSerializer(data = request.data)
         serializer.is_valid(raise_exception = True)
         dispositivo = serializer.save()
@@ -204,7 +220,7 @@ class dispositivoViewSet(viewsets.GenericViewSet):
         #instancia de la persona
         persona = get_object_or_404(Persona,email=self.request.user)
         usuaria = get_object_or_404(Usuaria,persona=persona)
-        
+
         #traer el dispositivo o dispositivos que tiene la usuaria
         try:
             dispositivos = DispositivoRastreador.objects.filter(usuaria=usuaria)
@@ -215,13 +231,13 @@ class dispositivoViewSet(viewsets.GenericViewSet):
         except DispositivoRastreador.DoesNotExist:
             data = None
             estado = status.HTTP_404_NOT_FOUND
-        
+
         return Response(data)
 
 
 
 class grupoViewSet(viewsets.GenericViewSet):
-    
+
     def get_permissions(self):
         if self.action in ['create','retrieve','destroy','unirme','expulsar','nombre','misGrupos','salirGrupo']:
             permissions = [IsAuthenticated,IsAccountOwner]
@@ -238,7 +254,7 @@ class grupoViewSet(viewsets.GenericViewSet):
 
         #añadir  a request.data el username de la usuaria
         request.data['username'] = persona.username
- 
+
         serializer = grupoCrearSerializer(data = request.data)
         serializer.is_valid(raise_exception = True)
         grupo = serializer.save()
@@ -258,7 +274,7 @@ class grupoViewSet(viewsets.GenericViewSet):
         data = {
             'informacion_grupo' : grupoInformacionSerializer(grupo).data
         }
-        
+
         return Response(data, status=status.HTTP_200_OK)
 
     def destroy(self,request,*args,**kwargs):
@@ -296,7 +312,7 @@ class grupoViewSet(viewsets.GenericViewSet):
 
         serializer = grupoExpulsarSerializer(data = request.data)
         serializer.is_valid(raise_exception = True)
-        grupo = serializer.save() 
+        grupo = serializer.save()
 
         data = {
             'grupo': grupoInformacionSerializer(grupo).data
@@ -307,13 +323,13 @@ class grupoViewSet(viewsets.GenericViewSet):
     @action(detail=False,methods=['patch'])
     def unirme(self,request,*args,**kwargs):
         #parametros [clave de acceso]
-        
+
         persona = get_object_or_404(Persona, email = request.user)
         self.request.data['username'] = persona.username
 
         serializer = grupoUnirSerializer(data = request.data)
         serializer.is_valid(raise_exception = True)
-        grupo = serializer.save() 
+        grupo = serializer.save()
 
         data = {
             'grupo': grupoInformacionPersonaSerializer(grupo).data
@@ -323,15 +339,15 @@ class grupoViewSet(viewsets.GenericViewSet):
 
     @action(detail=False,methods=['get'],url_path='mis-grupos')
     def misGrupos(self,request,*args,**kwargs):
-        
+
         persona = get_object_or_404(Persona,email=self.request.user)
-        
+
         try:
             grupos = Grupo.objects.filter(integrantes__username=persona.username)
             serializer = misGruposSerializer(grupos,many=True)
             data = serializer.data
             estado = status.HTTP_200_OK
-            
+
         except Grupo.DoesNotExist:
             data = None
             estado = status.HTTP_404_NOT_FOUND
@@ -343,7 +359,7 @@ class grupoViewSet(viewsets.GenericViewSet):
 
         #obtener la instancia de la persona que saldra del grupo
         contacto = get_object_or_404(Persona,email=self.request.user)
-        
+
         #obtener a la admin del grupo
         admin = get_object_or_404(Persona,username=request.data['username_usuaria'])
         usuaria = get_object_or_404(Usuaria,persona=admin)
@@ -366,7 +382,7 @@ class grupoViewSet(viewsets.GenericViewSet):
     [fecha_hora]
 """
 class alertaViewSet(viewsets.GenericViewSet):
-    
+
     """Los permisos de publicar y desactivar no necesitan autentificacion"""
     def get_permissions(self):
         if self.action in ['publicar','desactivacion']:
@@ -390,7 +406,7 @@ class alertaViewSet(viewsets.GenericViewSet):
     """El dispositivo visualiza si la alerta ha sido desactivada"""
     @action(detail=False, methods=['get'])
     def desactivacion(self,request,*args,**kwargs):
-        
+
         #obtener la instancia del dispositivo rastreador
         try:
             dispositivo = get_object_or_404(DispositivoRastreador,numero_serie=request.data['numero_serie'])
@@ -419,11 +435,11 @@ class alertaViewSet(viewsets.GenericViewSet):
 
             #se recupera la informacion de la ultima alerta que tenga el grupo
             for grupo in grupos:
-                alerta = Alerta.objects.filter(grupo=grupo).order_by('fecha_hora').last()        
+                alerta = Alerta.objects.filter(grupo=grupo).order_by('fecha_hora').last()
                 serializer = alertaGrupoSerializer(alerta)
                 data[str(indice)]= serializer.data
                 indice +=1
-        
+
             estado=status.HTTP_200_OK
 
         except:
@@ -445,7 +461,7 @@ class alertaViewSet(viewsets.GenericViewSet):
         #instancia de la usuaria
         admin = get_object_or_404(Persona,username=self.request.data['username'])
         usuaria = get_object_or_404(Usuaria,persona=admin)
-        
+
         #encontrar ese grupo con la usuaria y el miembro
         grupo = get_object_or_404(Grupo,usuaria=usuaria,integrantes=miembro)
 
@@ -462,7 +478,7 @@ class alertaViewSet(viewsets.GenericViewSet):
     """Brindar informacion de la ultima alerta a la usuaria"""
     @action(detail=False,methods=['get'],url_path='mi-alerta')
     def miAlerta(self,request,*args,**kwargs):
-        
+
         #instancia de la usuaria
         persona = get_object_or_404(Persona,email=self.request.user)
         usuaria = get_object_or_404(Usuaria,persona=persona)
@@ -484,7 +500,7 @@ class alertaViewSet(viewsets.GenericViewSet):
     def desactivarAlerta(self, request,*args,**kwargs):
         #[nombre_alerta] que debe de ser la mas reciente
         #[pin_desactivador] que ingresa la usuaria al dispositivo
-        
+
         #Validar que la usuaria existe
         persona = get_object_or_404(Persona,email=self.request.user)
         usuaria = get_object_or_404(Usuaria, persona = persona)
@@ -521,7 +537,7 @@ class cuestionarioViewSet(viewsets.GenericViewSet):
 
     def create(self,request,*args,**kwargs):
         #parametro [username_usuaria] administradora del grupo
-        #parametro [nombre_alerta] que debe de ser la ultima 
+        #parametro [nombre_alerta] que debe de ser la ultima
 
         #instancia del miembro
         miembro = get_object_or_404(Persona,email=self.request.user)
@@ -535,7 +551,7 @@ class cuestionarioViewSet(viewsets.GenericViewSet):
         data = {
             'cuestionario':cuestionarioSerializer(cuestionario).data
         }
-    
+
         return Response(data,status=status.HTTP_201_CREATED)
 
     @action(detail=False,methods=['put'])
@@ -561,7 +577,7 @@ class cuestionarioViewSet(viewsets.GenericViewSet):
     @action(detail=False,methods=['get'],url_path='mi-cuestionario')
     def miCuestionario(self,request,*args,**kwargs):
         #[username_usuaria] dueña del grupo
-        #[nombre_alerta] 
+        #[nombre_alerta]
 
         #instancia de la persona
         persona = get_object_or_404(Persona,email=self.request.user)
@@ -577,3 +593,104 @@ class cuestionarioViewSet(viewsets.GenericViewSet):
         }
 
         return Response(data,status=status.HTTP_200_OK)
+
+
+
+
+class senasViewSet(viewsets.GenericViewSet):
+
+    """Definir los permisos"""
+    def get_permissions(self):
+        if self.action in ['create','retrieve','partial_update','delete']:
+            permissions = [IsAuthenticated,IsAccountOwner]
+        else:
+            permissions = [IsAuthenticated]
+        return [p() for p in permissions]
+
+    """Registrar las señas particulares de una usuaria"""
+    #salvar una seña particular a la vez
+    def create(self,request,*args,**kwargs):
+        #parametros [username] de la usuaria
+
+        persona = get_object_or_404(Persona,email=self.request.user)
+        self.request.data['username'] = persona.username
+
+        serializer = senaCrearSerializer(data = request.data)
+        serializer.is_valid(raise_exception=True)
+        sena = serializer.save()
+
+        data = {
+            'sena_particular':senaSerializer(sena).data
+        }
+
+        return Response(data,status=status.HTTP_200_OK)
+
+    """Listar las senas particulares que tiene una usuaria"""
+    def retrieve(self,request,*args,**kwargs):
+        #parametros dentro de la url [username] de la usuaria
+
+        persona = get_object_or_404(Persona,email=self.request.user)
+        usuaria = get_object_or_404(Usuaria,persona=persona)
+
+        #traer la seña o señas particulares que tiene una usuaria
+        try:
+            senas = UsuariaHasSenaUbicacion.objects.filter(usuaria=usuaria)
+            data = {
+                'senas-particulares': senaSerializer(senas,many=True).data
+            }
+            estado = status.HTTP_200_OK
+
+        except UsuariaHasSenaUbicacion.DoesNotExist:
+            data = None
+            estado = status.HTTP_404_NOT_FOUND
+
+        return Response(data,status=estado)
+
+    """Borrar una sena particular que tenga la usuaria"""
+    def delete(self,request,*args,**kwargs):
+        #parametros [username] [descripcion] [nombre_sena_particular] [nombre_ubicacion_corporal]
+        data = self.request.data
+
+        persona = get_object_or_404(Persona,email=request.user)
+        usuaria = get_object_or_404(Usuaria,persona=persona)
+
+        # instancia de la seña particular
+        sena = get_object_or_404(SenasParticulares,nombre_sena_particular=data['nombre_sena_particular'])
+
+        # instancia de la ubicacion corporal
+        ubicacion = get_object_or_404(UbicacionCorporal,nombre_ubicacion_corporal=data['nombre_ubicacion_corporal'])
+
+        #instancia que se va a borrar
+        instancia = get_object_or_404(
+            UsuariaHasSenaUbicacion,
+            usuaria=usuaria,
+            descripcion=data['descripcion'],
+            sena_particular=sena,
+            ubicacion_corporal=ubicacion
+        )
+
+        #borrar la instancia
+        instancia.delete()
+
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+    """Modificar la descripcion de la seña particular"""
+    def partial_update(self,request,*args,**kwargs):
+
+        #instancia de la usuaria
+        persona = get_object_or_404(Persona,email=request.user)
+        self.request.data['username']=persona.username
+
+        #serializer para actualizar la descripcion de la seña particular
+        serializer = senaActualizarSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        sena = serializer.save()
+
+        data = {
+            'sena_particular' : senaSerializer(sena).data
+        }
+
+        return Response(data,status=status.HTTP_200_OK)
+
+
+
