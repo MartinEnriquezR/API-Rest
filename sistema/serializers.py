@@ -23,6 +23,9 @@ from catalogo.models import *
 #Modelserializers del catalogo
 from catalogo.serializers import *
 
+#envio de correos
+from django.core.mail import EmailMultiAlternatives
+
 
 """Informacion de la persona"""
 class personaSerializer(serializers.ModelSerializer):
@@ -142,7 +145,31 @@ class cambiarPasswordSerializer(serializers.Serializer):
 
         return persona
 
+"""Serializer para enviar correo de recuperacion donde se cambia la contraseña"""
+class personaRecuperarCuenta(serializers.Serializer):
+    email = serializers.EmailField()
 
+    def validate(self,data):
+        #validar que exista una cuenta asociada a este email
+        try:
+            Persona.objects.get(email=data['email'])
+        except Persona.DoesNotExist:
+            raise serializers.ValidationError('No existe ninguna cuenta asociada a este email.')
+        return data
+
+    def create(self,data):
+        #enviar el correo para recuperar la contraseña 
+        #debe de ser un documento html que tenga un boton y el token de acceso temporal
+        subject, from_email, to = 'hello', 'from@example.com', 'to@example.com'
+        text_content = 'This is an important message.'
+        html_content = '<p>This is an <strong>important</strong> message.</p>'
+        msg = EmailMultiAlternatives(subject, text_content, from_email, [to])
+        msg.attach_alternative(html_content, "text/html")
+        msg.send()
+
+        return persona
+        
+        
 
 """Serializer para que una usuaria que se regustra dentro del sistema"""
 class usuariaSignupSerializer(serializers.Serializer):
@@ -267,7 +294,6 @@ class usuariaSignupSerializer(serializers.Serializer):
 
         return(data)
 
-
     def create(self,data):
 
         #claves de los datos de la persona
@@ -380,6 +406,8 @@ class usuariaActualizarSerializer(serializers.Serializer):
     tipo_ceja = serializers.CharField(max_length=15)
     textura_cabello = serializers.CharField(max_length=30)
 
+    enfermedades = EnfermedadSerializer(many=True)
+
     def validate(self,data):
         #validar que exista cada una de las opciones
         
@@ -429,9 +457,17 @@ class usuariaActualizarSerializer(serializers.Serializer):
             raise serializers.ValidationError('Este tipo de ceja no es valido')
 
         try:
-            TexturaCabello.objects.get(estado_civil=data['estado_civil'])
+            TexturaCabello.objects.get(textura_cabello=data['textura_cabello'])
         except TexturaCabello.DoesNotExist:
             raise serializers.ValidationError('Esta textura de cabello no es valida')
+
+        #validar que las enfermedades existan 
+        enfermedades = data['enfermedades']
+        for enfermedadData in enfermedades:
+            try:
+                Enfermedad.objects.get(nombre_enfermedad=enfermedadData['nombre_enfermedad'])
+            except Enfermedad.DoesNotExist:
+                raise serializers.ValidationError('Esta enfermedad no existe')
 
         return data
 
@@ -439,7 +475,7 @@ class usuariaActualizarSerializer(serializers.Serializer):
         persona = Persona.objects.get(username=data['username'])
         usuaria = Usuaria.objects.get(persona=persona)
 
-        #instancias 
+        #instancias que se tienen que guardar
         estado_civil = EstadoCivil.objects.get(estado_civil=data['estado_civil'])
         pais = Pais.objects.get(nacionalidad=data['nacionalidad'])
         tipo_nariz = TipoNariz.objects.get(tipo_nariz=data['tipo_nariz'])
@@ -465,8 +501,65 @@ class usuariaActualizarSerializer(serializers.Serializer):
         usuaria.tipo_ceja = tipo_ceja
         usuaria.textura_cabello = textura_cabello
 
+        #guardar las enfermedades
+        enfermedades = data.pop('enfermedades')
+        for enfermedadData in enfermedades:
+            usuaria.enfermedades.add(
+                Enfermedad.objects.get(nombre_enfermedad=enfermedadData['nombre_enfermedad'])
+            )
+
+        #remover Ninguna si es el caso
+        queryset = usuaria.enfermedades.filter(nombre_enfermedad='Ninguna') 
+        if queryset:
+            #remover Ninguna
+            ninguna = Enfermedad.objects.get(nombre_enfermedad='Ninguna')
+            usuaria.enfermedades.remove(ninguna)
+
         usuaria.save()
 
+        return usuaria
+
+"""Serializer para borrar una enfermedad"""
+class usuariaEnfermedadSerializer(serializers.Serializer):
+    username = serializers.CharField()
+    nombre_enfermedad = serializers.CharField(max_length=30)
+
+    def validate(self,data):
+        #validar que la enfermedad que se va a borrar exista
+        try:
+            Enfermedad.objects.get(nombre_enfermedad=data['nombre_enfermedad'])
+        except Enfermedad.DoesNotExist:
+            raise serializers.ValidationError('Esta enfermedad no existe')
+            
+        #validar que el nombre de la enfermedad no sea ninguno 
+        if data['nombre_enfermedad'] == 'Ninguna':
+            raise serializers.ValidationError('Informacion incorrecta')
+
+        return data
+
+    def create(self,data):
+        
+        #isntancia de la usuaria
+        persona = Persona.objects.get(username=data['username'])
+        usuaria = Usuaria.objects.get(persona=persona)
+
+        #Contar el total de enfermedades que padece una usuaria
+        if usuaria.enfermedades.all().count() == 1:
+            #agregar registro de ninguno como enfermedad
+            enfermedad = Enfermedad.objects.get(nombre_enfermedad='Ninguna')
+            usuaria.enfermedades.add(enfermedad)
+
+            #isntancia que se va a remover
+            remover = Enfermedad.objects.get(nombre_enfermedad=data['nombre_enfermedad'])
+            usuaria.enfermedades.remove(remover)
+            usuaria.save()
+        
+        else:
+            #isntancia que se va a remover
+            remover = Enfermedad.objects.get(nombre_enfermedad=data['nombre_enfermedad'])
+            usuaria.enfermedades.remove(remover)
+            usuaria.save()
+        
         return usuaria
 
 

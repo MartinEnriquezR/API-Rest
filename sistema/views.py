@@ -80,6 +80,11 @@ class personaViewSet(mixins.RetrieveModelMixin,
 
         return Response(data, status=status.HTTP_200_OK)
 
+    @action(detail=False,methods=['post'], url_path='correo-recuperacion')
+    def correoRecuperacion(self,request,*args,**kwargs):
+
+        return Response(status=status.HTTP_200_OK)
+
 
 
 class usuariaViewSet(viewsets.GenericViewSet):
@@ -144,6 +149,24 @@ class usuariaViewSet(viewsets.GenericViewSet):
         data = usuariaSerializer(usuaria).data
         
         return Response(data,status=status.HTTP_200_OK)
+
+    @action(detail=False,methods=['delete'],url_path='borrar-enfermedad')
+    def borrarEnfermedad(self,request,*args,**kwargs):
+        #parametros [username] de la usuaria
+        persona = get_object_or_404(Persona,email=self.request.user)
+        usuaria = get_object_or_404(Usuaria,persona=persona)
+
+        self.request.data['username']=persona.username
+
+        #serializer
+        serializer = usuariaEnfermedadSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        usuaria = serializer.save()
+
+        data = usuariaSerializer(usuaria).data
+
+        return Response(data,status=status.HTTP_200_OK)
+
 
 
 class dispositivoViewSet(viewsets.GenericViewSet):
