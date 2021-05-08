@@ -59,7 +59,7 @@ class personaLoginSerializer(serializers.Serializer):
         persona = authenticate(username=data['email'],password=data['password'])
         
         if not persona:
-            raise serializers.ValidationError('Credenciales invalidas')
+            raise serializers.ValidationError('Credenciales invalidas.')
 
         self.context['persona'] = persona
 
