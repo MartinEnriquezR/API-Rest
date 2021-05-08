@@ -26,5 +26,11 @@ urlpatterns = [
     
     #ulrs del sistema
     path('',include(('sistema.urls','sistema'),namespace='sistema')),
+
+    #urls de las graficas
+    path('',include(('graficas.urls','graficas'),namespace='graficas')),
+
+    #urls de las notificaciones
+    path('',include(('notificaciones.urls','notificaciones'),namespace='notificaciones')),
     
 ]

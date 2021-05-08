@@ -25,6 +25,11 @@ from catalogo.serializers import *
 
 #envio de correos
 from django.core.mail import EmailMultiAlternatives
+from django.template.loader import render_to_string
+
+#expresiones regulares
+import re
+
 
 
 """Informacion de la persona"""
@@ -46,21 +51,18 @@ class personaSerializer(serializers.ModelSerializer):
 
 """Serializer para el login de cualquier persona en el sistema"""
 class personaLoginSerializer(serializers.Serializer):
-    #definimos los campos que seran validados y sus limitantes
     email=serializers.EmailField()
     password=serializers.CharField(min_length=8)
 
     def validate(self,data):
-        #validacion de todos los datos
-        #se ejecuta despues de que se validaron los datos necesarios
-        #se usa la autentificacion de django
+        #saber si la persona o usuaria estan registrados
         persona = authenticate(username=data['email'],password=data['password'])
+        
         if not persona:
             raise serializers.ValidationError('Credenciales invalidas')
 
-        #cada serializer tiene un context, que es como un atributo de una clase
-        # arriba ya se tiene la instancia de persona
         self.context['persona'] = persona
+
         return data
 
     def create(self,data):
@@ -70,7 +72,6 @@ class personaLoginSerializer(serializers.Serializer):
 
 """Serializer para el signup de una persona"""
 class personaSignupSerializer(serializers.Serializer):
-    #campos que debemos de aceptar
     email=serializers.EmailField(
         validators=[
             UniqueValidator(queryset=Persona.objects.all())
@@ -127,7 +128,7 @@ class cambiarPasswordSerializer(serializers.Serializer):
 
         #validar que el password nuevo sea igual
         if passwd != passwdConf:
-            raise serializers.ValidationError('El password nuevo debe de ser igual')
+            raise serializers.ValidationError('Los passwords ingresados debe de coincidir.')
 
         #validar que el password no sea muy comun
         password_validation.validate_password(passwd)
@@ -146,7 +147,7 @@ class cambiarPasswordSerializer(serializers.Serializer):
         return persona
 
 """Serializer para enviar correo de recuperacion donde se cambia la contraseña"""
-class personaRecuperarCuenta(serializers.Serializer):
+class personaRecuperarSerializer(serializers.Serializer):
     email = serializers.EmailField()
 
     def validate(self,data):
@@ -154,27 +155,243 @@ class personaRecuperarCuenta(serializers.Serializer):
         try:
             Persona.objects.get(email=data['email'])
         except Persona.DoesNotExist:
-            raise serializers.ValidationError('No existe ninguna cuenta asociada a este email.')
+            raise serializers.ValidationError('No existe ninguna cuenta asociada a este correo electronico.')
         return data
 
     def create(self,data):
-        #enviar el correo para recuperar la contraseña 
-        #debe de ser un documento html que tenga un boton y el token de acceso temporal
-        subject, from_email, to = 'hello', 'from@example.com', 'to@example.com'
-        text_content = 'This is an important message.'
-        html_content = '<p>This is an <strong>important</strong> message.</p>'
-        msg = EmailMultiAlternatives(subject, text_content, from_email, [to])
-        msg.attach_alternative(html_content, "text/html")
-        msg.send()
-
+        persona = Persona.objects.get(email=data['email'])
+        #enviar el correo electronico para reestablecer la cuenta
+        self.enviarEmail(persona)        
         return persona
         
+    def enviarEmail(self,persona):
+        #obtener el token de la persona para que pueda reestablecer su contraseña
+        token = self.obtenerToken(persona)
+
+        subject = 'Restablece tu contraseña'
+        from_email = 'ProyectoTerminal03@gmail.com'
         
+        content = render_to_string(
+            'recuperarCuenta.html',
+            {'token':token,'nombre':persona.nombre}
+        )
+        
+        msg = EmailMultiAlternatives(subject, content, from_email, [persona.email])
+        msg.attach_alternative(content, "text/html")
+        msg.send()
+
+    def obtenerToken(self,persona):
+        #obtener el token de la persona que solicita el cambio de password
+        token, created = Token.objects.get_or_create(user=persona)
+        return token.key
+
+"""Serializer para restablecer la contraseña"""
+class restablecerPasswordSerializer(serializers.Serializer):
+    token = serializers.CharField()
+    password  = serializers.CharField()
+    password_confirmation = serializers.CharField()
+
+    def validate(self,data):
+        token = data['token']
+        passwd = data['password']
+        passwdConf = data['password_confirmation']
+
+        #valida que las contraseñas sean iguales
+        if passwd != passwdConf:
+            raise serializers.ValidationError('Las claves ingresadas no coinciden')
+
+        #validar que la contraseña no sea muy sencilla
+        password_validation.validate_password(passwd)
+        
+        #validar que el token pertenezca a una persona valida
+        try:
+            user = Token.objects.get(key=token).user
+        except:
+            raise serializers.ValidationError('Informacion del usuario incorrecta')
+        
+        return data
+    
+    def create(self,data):
+        #instancia de la persona
+        persona = Token.objects.get(key=data['token']).user
+
+        #guardar el password nuevo
+        persona.set_password(data['password'])
+        persona.save()
+
+        return persona
+
+"""Serializer para que una persona se convierta en usuaria"""
+class convertirUsuariaSerializer(serializers.Serializer):
+    #username de la persona
+    username = serializers.CharField()
+    
+    #datos de la usuaria
+    estatura = serializers.IntegerField()
+    escolaridad = serializers.CharField(max_length=30)
+    estado_civil = serializers.CharField()
+    nacionalidad = serializers.CharField()
+    tipo_nariz = serializers.CharField()
+    complexion = serializers.CharField()
+    color_ojo = serializers.CharField()
+    forma_rostro = serializers.CharField()
+    color_cabello = serializers.CharField()
+    color_piel = serializers.CharField()
+    tipo_ceja = serializers.CharField()
+    textura_cabello = serializers.CharField()
+    enfermedades = EnfermedadSerializer(many=True)
+
+    def validate(self,data):
+        persona = Persona.objects.get(username=data['username'])
+
+        #validar si ya existe la usuaria
+        try:
+            Usuaria.objects.get(persona = persona)
+            raise serializers.ValidationError('Ya eres una usuaria.')
+        except Usuaria.DoesNotExist:
+            pass
+
+        self.validarEdad(persona)
+        self.validarGenero(persona)
+        self.validarInformacion(data)
+        self.validarEnfermedades(data)
+        
+        return data
+
+    def validarEdad(self,persona):
+        #obtener la edad de la persona
+        edadDias = date.today() - persona.fecha_nacimiento
+        edadPersona = edadDias.days // 365
+        #saber si la persona cumple con el criterio de edad
+        if edadPersona < 15:
+            raise serializers.ValidationError('Debes de tener al menos 15 años.')
+
+    def validarGenero(self,persona):
+        #obtener el genero de la usuaria
+        genero = persona.genero
+        respuestaFemenino = re.compile(r'femenino',re.IGNORECASE)
+        isFemenino = respuestaFemenino.search(genero)
+        #saber si la persona cumple con el criterio de genero
+        if isFemenino == None:
+            raise serializers.ValidationError('Solo mujeres pueden ingresar a esta funcionalidad.')
+
+    def validarInformacion(self,data):
+        #validar que la informacion de la usuaria de las llaves foraneas exista
+        try:
+            EstadoCivil.objects.get(estado_civil = data['estado_civil'])
+        except EstadoCivil.DoesNotExist:
+            raise serializers.ValidationError('Este estado civil no se encuentra registrado.')
+        
+        try:
+            Pais.objects.get(nacionalidad = data['nacionalidad'])
+        except Pais.DoesNotExist:
+            raise serializers.ValidationError('Esta nacionalidad no se encuentra disponible.')
+
+        try:
+            TipoNariz.objects.get(tipo_nariz=data['tipo_nariz'])
+        except TipoNariz.DoesNotExist:
+            raise serializers.ValidationError('Este tipo de nariz no se encuentra disponible.')
+
+        try:
+            Complexion.objects.get(complexion=data['complexion'])
+        except Complexion.DoesNotExist:
+            raise serializers.ValidationError('Este tipo de complexion no se encuentra disponible.')
+
+        try:
+            ColorOjos.objects.get(color_ojo=data['color_ojo'])
+        except ColorOjos.DoesNotExist:
+            raise serializers.ValidationError('Este color de ojos no se encuentra disponible.')
+
+        try:
+            FormaRostro.objects.get(forma_rostro=data['forma_rostro'])
+        except FormaRostro.DoesNotExist:
+            raise serializers.ValidationError('Esta forma de rostro no se encuentra disponible.')
+
+        try:
+            ColorCabello.objects.get(color_cabello=data['color_cabello'])
+        except ColorCabello.DoesNotExist:
+            raise serializers.ValidationError('Este color de cabello no se encuentra disponible.')
+
+        try:
+            ColorPiel.objects.get(color_piel=data['color_piel'])
+        except ColorPiel.DoesNotExist:
+            raise serializers.ValidationError('Este color de piel no se  encuentra disponible.')
+
+        try:
+            TipoCejas.objects.get(tipo_ceja=data['tipo_ceja'])
+        except TipoCejas.DoesNotExist:
+            raise serializers.ValidationError('Este tipo de cejas no se encuentra disponible.')
+
+        try:
+            TexturaCabello.objects.get(textura_cabello=data['textura_cabello'])
+        except TexturaCabello.DoesNotExist:
+            raise serializers.ValidationError('Esta textura de cabello no se encuentra disponible.')
+        
+    def validarEnfermedades(self,data):
+        #validar que las enfermedades existan en la base de datos
+        enfermedades = data['enfermedades']
+        for enfermedadData in enfermedades:
+            try:
+                Enfermedad.objects.get(nombre_enfermedad=enfermedadData['nombre_enfermedad'])
+            except Enfermedad.DoesNotExist:
+                raise serializers.ValidationError('Esta enfermedad no se encuentra disponible.')
+
+    def create(self,data):
+        #instancia de la persona 
+        persona = Persona.objects.get(username=data['username'])
+
+        #isntancias de las llaves foraneas
+        estado_civil = EstadoCivil.objects.get(estado_civil=data['estado_civil'])
+        pais = Pais.objects.get(nacionalidad=data['nacionalidad'])
+        tipo_nariz = TipoNariz.objects.get(tipo_nariz=data['tipo_nariz'])
+        complexion = Complexion.objects.get(complexion=data['complexion'])
+        color_ojo = ColorOjos.objects.get(color_ojo=data['color_ojo'])
+        forma_rostro = FormaRostro.objects.get(forma_rostro=data['forma_rostro'])
+        color_cabello = ColorCabello.objects.get(color_cabello=data['color_cabello'])
+        color_piel = ColorPiel.objects.get(color_piel=data['color_piel'])
+        tipo_ceja = TipoCejas.objects.get(tipo_ceja=data['tipo_ceja'])
+        textura_cabello = TexturaCabello.objects.get(textura_cabello=data['textura_cabello'])
+
+        #modificar 'is_usuaria'
+        persona.is_usuaria = True
+        persona.save()
+
+        #registro de la usuaria
+        usuaria = Usuaria.objects.create(
+            persona = persona,
+            estatura = data['estatura'],
+            escolaridad = data['escolaridad'],
+            #llaves foraneas
+            estado_civil = estado_civil,
+            pais = pais,
+            tipo_nariz = tipo_nariz,
+            complexion = complexion,
+            color_ojo = color_ojo,
+            forma_rostro = forma_rostro,
+            color_cabello = color_cabello,
+            color_piel = color_piel,
+            tipo_ceja = tipo_ceja,
+            textura_cabello = textura_cabello
+        )
+        
+        #guardar las enfermedades
+        enfermedades = data.pop('enfermedades')
+        for enfermedadData in enfermedades:
+            usuaria.enfermedades.add(
+                #objeto de la enfermedad
+                Enfermedad.objects.get(nombre_enfermedad=enfermedadData['nombre_enfermedad'])
+            )
+        usuaria.save()
+
+        return persona
+
+
+
 
 """Serializer para que una usuaria que se regustra dentro del sistema"""
 class usuariaSignupSerializer(serializers.Serializer):
 
-    #campos de la persona
+    #datos de la persona
     email = serializers.EmailField(
         validators=[
             UniqueValidator(queryset=Persona.objects.all())
@@ -214,17 +431,13 @@ class usuariaSignupSerializer(serializers.Serializer):
 
     enfermedades = EnfermedadSerializer(many=True)
 
-
     def validate(self,data):
-        """validacion los datos de la persona"""
+        """validacion datos de la persona"""
 
         passwd = data['password']
         passwdConf = data['password_confirmation']
         genero = data['genero']
-        fecha_nacimiento = data['fecha_nacimiento']
-        today = date.today()
-        diferenciaDias = today - fecha_nacimiento
-
+        
         #validar las contraseñas, deben ser iguales
         if passwd != passwdConf:
             raise serializers.ValidationError('las contraseñas ingresadas no coinciden')
@@ -237,10 +450,7 @@ class usuariaSignupSerializer(serializers.Serializer):
             raise serializers.ValidationError('el genero de la usuaria debe de ser femenino')
 
 
-        #validar que la usuaria tenga  al menos 15 años
-        if diferenciaDias.days < 5475:
-            raise serializers.ValidationError('La usuaria debe de tener al menos 15 años cumplidos.')
-
+        
         #validar que los datos existan dentro de la base de datos
         try:
             nacionalidad = Pais.objects.get(nacionalidad=data['nacionalidad'])
@@ -294,6 +504,84 @@ class usuariaSignupSerializer(serializers.Serializer):
 
         return(data)
 
+    def validarEdad(self,data):
+        hoy = date.today()
+        fecha_nacimiento = data['fecha_nacimiento']
+        edadDias = hoy - fecha_nacimiento
+        
+        if edadDias.days < 5475:
+            raise serializers.ValidationError('Debes de tener al menos 15 años.')
+
+    def validarGenero(self,data):
+        #obtener el genero de la usuaria
+        genero = data['genero']
+        respuestaFemenino = re.compile(r'femenino',re.IGNORECASE)
+        isFemenino = respuestaFemenino.search(genero)
+        #saber si la persona cumple con el criterio de genero
+        if isFemenino == None:
+            raise serializers.ValidationError('Solo mujeres pueden ingresar a esta funcionalidad.')
+    
+    def validarInformacion(self,data):
+        #validar que la informacion de la usuaria de las llaves foraneas exista
+        try:
+            EstadoCivil.objects.get(estado_civil = data['estado_civil'])
+        except EstadoCivil.DoesNotExist:
+            raise serializers.ValidationError('Este estado civil no se encuentra registrado.')
+        
+        try:
+            Pais.objects.get(nacionalidad = data['nacionalidad'])
+        except Pais.DoesNotExist:
+            raise serializers.ValidationError('Esta nacionalidad no se encuentra disponible.')
+
+        try:
+            TipoNariz.objects.get(tipo_nariz=data['tipo_nariz'])
+        except TipoNariz.DoesNotExist:
+            raise serializers.ValidationError('Este tipo de nariz no se encuentra disponible.')
+
+        try:
+            Complexion.objects.get(complexion=data['complexion'])
+        except Complexion.DoesNotExist:
+            raise serializers.ValidationError('Este tipo de complexion no se encuentra disponible.')
+
+        try:
+            ColorOjos.objects.get(color_ojo=data['color_ojo'])
+        except ColorOjos.DoesNotExist:
+            raise serializers.ValidationError('Este color de ojos no se encuentra disponible.')
+
+        try:
+            FormaRostro.objects.get(forma_rostro=data['forma_rostro'])
+        except FormaRostro.DoesNotExist:
+            raise serializers.ValidationError('Esta forma de rostro no se encuentra disponible.')
+
+        try:
+            ColorCabello.objects.get(color_cabello=data['color_cabello'])
+        except ColorCabello.DoesNotExist:
+            raise serializers.ValidationError('Este color de cabello no se encuentra disponible.')
+
+        try:
+            ColorPiel.objects.get(color_piel=data['color_piel'])
+        except ColorPiel.DoesNotExist:
+            raise serializers.ValidationError('Este color de piel no se  encuentra disponible.')
+
+        try:
+            TipoCejas.objects.get(tipo_ceja=data['tipo_ceja'])
+        except TipoCejas.DoesNotExist:
+            raise serializers.ValidationError('Este tipo de cejas no se encuentra disponible.')
+
+        try:
+            TexturaCabello.objects.get(textura_cabello=data['textura_cabello'])
+        except TexturaCabello.DoesNotExist:
+            raise serializers.ValidationError('Esta textura de cabello no se encuentra disponible.')
+        
+    def validarEnfermedades(self,data):
+        #validar que las enfermedades existan en la base de datos
+        enfermedades = data['enfermedades']
+        for enfermedadData in enfermedades:
+            try:
+                Enfermedad.objects.get(nombre_enfermedad=enfermedadData['nombre_enfermedad'])
+            except Enfermedad.DoesNotExist:
+                raise serializers.ValidationError('Esta enfermedad no se encuentra disponible.')
+
     def create(self,data):
 
         #claves de los datos de la persona
@@ -314,20 +602,13 @@ class usuariaSignupSerializer(serializers.Serializer):
         #registro de la persona
         persona = Persona.objects.create_user(**dataPersona)
 
-        #claves de los datos de la usuaria
-        usuariaKeys = [
-            'estatura',
-            'escolaridad'
-        ]
-        #datos de la usuaria
-        dataUsuaria = { index : data[index] for index in usuariaKeys }
-
         #registro de la usuaria
         usuaria = Usuaria.objects.create(
             #instancia de la persona
             persona = persona,
             #datos de la usuaria
-            **dataUsuaria,
+            estatura=data['estatura'],
+            escolaridad=data['escolaridad'],
             #llaves foraneas de la usuaria
             estado_civil=EstadoCivil.objects.get(estado_civil=data['estado_civil']),
             pais=Pais.objects.get(nacionalidad=data['nacionalidad']),
@@ -341,6 +622,15 @@ class usuariaSignupSerializer(serializers.Serializer):
             textura_cabello=TexturaCabello.objects.get(textura_cabello=data['textura_cabello'])
         )
 
+        #registro de las enfermedades
+        self.registrarEnfermedades(usuaria,data)
+        
+        #obtener el token
+        self.context['persona'] = persona
+        token, created = Token.objects.get_or_create(user=self.context['persona'])
+        return persona, token.key
+
+    def registrarEnfermedades(self,usuaria,data):
         #registro de la o las enfermedades que padece la usuaria
         enfermedades = data.pop('enfermedades')
         for enfermedadData in enfermedades:
@@ -349,11 +639,6 @@ class usuariaSignupSerializer(serializers.Serializer):
                 Enfermedad.objects.get(nombre_enfermedad=enfermedadData['nombre_enfermedad'])
             )
         usuaria.save()
-
-        #obtener el token
-        self.context['persona'] = persona
-        token, created = Token.objects.get_or_create(user=self.context['persona'])
-        return persona, token.key
 
 """Informacion de la usuaria"""
 class usuariaSerializer(serializers.ModelSerializer):
@@ -589,7 +874,7 @@ class dispositivoAsociarSerializer(serializers.Serializer):
             dispositivo = DispositivoRastreador.objects.get(numero_serie = data['numero_serie'])
             #verificar que el dispositivo no tenga a ninguna usuaria asignada
             if dispositivo.usuaria:
-                raise serializers.ValidationError('Numero de serie incorrecto')
+                raise serializers.ValidationError('Numero de serie incorrecto.')
         except DispositivoRastreador.DoesNotExist:
             raise serializers.ValidationError('Numero de serie incorrecto.')
 
@@ -620,12 +905,12 @@ class dispositivoDesasociarSerializer(serializers.Serializer):
         try:
             persona = Persona.objects.get(username =data['username'])
         except Persona.DoesNotExist:
-            raise serializers.ValidationError('Username invalido')
+            raise serializers.ValidationError('Username invalido.')
 
         try:
             usuaria = Usuaria.objects.get(persona=persona)
         except Usuaria.DoesNotExist:
-            raise serializers.ValidationError('Username invalido')
+            raise serializers.ValidationError('Username invalido.')
 
         #encontrar si la usuaria tiene este dispositivo asociado
         try:
@@ -634,7 +919,7 @@ class dispositivoDesasociarSerializer(serializers.Serializer):
                 usuaria= usuaria
             )
         except DispositivoRastreador.DoesNotExist:
-            raise serializers.ValidationError('Este dispositivo no existe')
+            raise serializers.ValidationError('Este dispositivo no existe, verifica tu informacion.')
 
         return data
 
@@ -667,11 +952,11 @@ class dispositivoPinSerializer(serializers.Serializer):
         try:
             persona = Persona.objects.get(username =data['username'])
         except Persona.DoesNotExist:
-            raise serializers.ValidationError('Username incorrecto')
+            raise serializers.ValidationError('Username incorrecto.')
         try:
             usuaria = Usuaria.objects.get(persona=persona)
         except Usuaria.DoesNotExist:
-            raise serializers.ValidationError('Username incorrecto')
+            raise serializers.ValidationError('Username incorrecto.')
 
         #encontrar el dispositivo
         try:
@@ -680,7 +965,7 @@ class dispositivoPinSerializer(serializers.Serializer):
                 usuaria = usuaria
             )
         except DispositivoRastreador.DoesNotExist:
-            raise serializers.ValidationError('Numero de serie incorrecto')
+            raise serializers.ValidationError('Numero de serie incorrecto.')
 
         return data
 
@@ -703,7 +988,7 @@ class dispositivoPinSerializer(serializers.Serializer):
 
 
 
-"""Nombre y clave de acceso de un grupo de confianza"""
+"""Informacion del grupo de confianza (nombre y clave de acceso)"""
 class grupoSerializer(serializers.ModelSerializer):
 
     class Meta:
@@ -724,36 +1009,40 @@ class grupoCrearSerializer(serializers.Serializer):
         #verificar que no se haya excedido el maximo numero de grupo permitidos
         grupos = Grupo.objects.all().count()
         if grupos == 1000000:
-            raise serializers.ValidationError('Ya no existen grupos disponibles')
+            raise serializers.ValidationError('Ya no existen grupos disponibles.')
 
-        #verificar que la usuaria no tenga un grupo ya existente
+        #verificar que la usuaria no tenga un grupo
         try:
             persona = Persona.objects.get(username =data['username'])
         except Persona.DoesNotExist:
-            raise serializers.ValidationError('Username invalido')
+            raise serializers.ValidationError('Username invalido.')
 
         try:
             usuaria = Usuaria.objects.get(persona=persona)
         except Usuaria.DoesNotExist:
-            raise serializers.ValidationError('Usuario invalido')
+            raise serializers.ValidationError('Usuario invalido.')
 
         try:
             grupo = Grupo.objects.get(usuaria=usuaria)
-            raise serializers.ValidationError('La usuaria ya tiene un grupo de confianza')
+            raise serializers.ValidationError('Ya tienes un grupo de confianza.')
         except Grupo.DoesNotExist:
             pass
 
-        #validar la clave de acceso, que no este en uso por otro grupo
-        seed(1)
-        while True:
-            clave = randint(0,999999)
-            try:
-                Grupo.objects.get(clave_acceso=str(clave))
-            except Grupo.DoesNotExist:
-                self.context['clave'] = str(clave)
-                break
+        #validar la clave de acceso
+        self.validarClave()
 
         return(data)
+
+    def validarClave(self):
+        #validar la clave de acceso no este en uso por otro grupo
+        seed(1)
+        while True:
+            clave = "%06d" % randint(0,999999)
+            try:
+                Grupo.objects.get(clave_acceso=clave)
+            except Grupo.DoesNotExist:
+                self.context['clave'] = clave
+                break
 
     def create(self,data):
         #obtener a la usuaria
@@ -770,7 +1059,7 @@ class grupoCrearSerializer(serializers.Serializer):
 
         return grupo
 
-"""Informacion de los miembros"""
+"""Informacion de los miembros del grupo"""
 class MiembroSerializer(serializers.ModelSerializer):
     class Meta:
         model = Persona
@@ -804,23 +1093,23 @@ class grupoUnirSerializer(serializers.Serializer):
         try:
             grupo = Grupo.objects.get(clave_acceso = data['clave_acceso'])
         except Grupo.DoesNotExist:
-            raise serializers.ValidationError('No existe ningun grupo con esta clave de acceso')
+            raise serializers.ValidationError('Verifica tu clave de acceso.')
 
-        #validar que el limite de usuarios dentro del grupo
+        #validar el limite de usuarios dentro del grupo
         totalMiembros = grupo.integrantes.all().count()
         if totalMiembros == 5:
-            raise serializers.ValidationError('No se pueden agregar mas miembros a este grupo')
+            raise serializers.ValidationError('No se pueden agregar mas miembros a este grupo.')
 
         #validar que no se vuelva a unir a un grupo esta persona
         persona = Persona.objects.get(username=data['username'])
 
         try:
             Miembros.objects.get(grupo=grupo, persona=persona)
-            raise serializers.ValidationError('Ya formas parte de este grupo de confianza')
+            raise serializers.ValidationError('Ya formas parte de este grupo de confianza.')
         except Miembros.DoesNotExist:
             pass
 
-        return(data)
+        return data
 
     def create(self,data):
 
@@ -850,39 +1139,27 @@ class grupoExpulsarSerializer(serializers.Serializer):
 
         #saber si la usuaria tiene un grupo de confianza
         try:
-            admin = Persona.objects.get(username =data['username_usuaria'])
-        except Persona.DoesNotExist:
-            raise serializers.ValidationError('Username invalido')
-        try:
-            usuaria = Usuaria.objects.get(persona=admin)
-        except Usuaria.DoesNotExist:
-            raise serializers.ValidationError('Username invalido')
-        try:
-            grupo = Grupo.objects.get(usuaria=usuaria)
+            grupo = Grupo.objects.get(usuaria__persona__username=data['username_usuaria'])
         except Grupo.DoesNotExist:
-            raise serializers.ValidationError('La usuaria no tiene un grupo de confianza')
+            raise serializers.ValidationError('Informacion de la usuaria incorrecta.')
 
         #saber si el contacto de confianza existe
         try:
             contacto = Persona.objects.get(username =data['username_persona'])
         except Persona.DoesNotExist:
-            raise serializers.ValidationError('Username del contacto de confianza incorrecto')
+            raise serializers.ValidationError('Informacion del miembro incorrecta.')
 
         #saber si en este grupo tiene a el miembro
         try:
             Miembros.objects.get(grupo=grupo ,persona= contacto)
         except Miembros.DoesNotExist:
-            raise serializers.ValidationError('Este contacto de confianza no es miembro de este grupo')
+            raise serializers.ValidationError('Este miembro no forma parte de tu grupo.')
 
         return data
 
     def create(self,data):
-        #instancia de la usuaria
-        persona = Persona.objects.get(username =data['username_usuaria'])
-        usuaria = Usuaria.objects.get(persona=persona)
-
-        #grupo de la usuaria
-        grupo = Grupo.objects.get(usuaria=usuaria)
+        #instancia del grupo
+        grupo = Grupo.objects.get(usuaria__persona__username=data['username_usuaria'])
 
         #instancia de la persona que se va a expulsar
         miembro = Persona.objects.get(username =data['username_persona'])
@@ -899,21 +1176,11 @@ class grupoNombreSerializer(serializers.Serializer):
     nombre = serializers.CharField(max_length=20)
 
     def validate(self,data):
-        #verificar que la usuaria exista segun el username proporcionado
-        try:
-            persona = Persona.objects.get(username =data['username'])
-        except Persona.DoesNotExist:
-            raise serializers.ValidationError('Username invalido')
-        try:
-            usuaria = Usuaria.objects.get(persona = persona)
-        except Usuaria.DoesNotExist:
-            raise serializers.ValidationError('Username invalido')
-
         #verificar que el grupo exista
         try:
-            grupo = Grupo.objects.get(usuaria=usuaria)
+            grupo = Grupo.objects.get(usuaria__persona__username=data['username'])
         except Grupo.DoesNotExist:
-            raise serializers.ValidationError('Esta usuaria no tiene ningun grupo')
+            raise serializers.ValidationError('Informacion del grupo incorrecta.')
 
         #verificar que el nombre nuevo del grupo sea diferente
         if grupo.nombre == data['nombre']:
@@ -922,12 +1189,8 @@ class grupoNombreSerializer(serializers.Serializer):
         return data
 
     def create(self,data):
-        #instancia de la usuaria
-        persona = Persona.objects.get(username =data['username'])
-        usuaria = Usuaria.objects.get(persona=persona)
-
-        #grupo de la usuaria
-        grupo = Grupo.objects.get(usuaria = usuaria)
+        #instancia del grupo
+        grupo = Grupo.objects.get(usuaria__persona__username = data['username'])
 
         #nuevo nombre del grupo asignado por la usuaria
         grupo.nombre = data['nombre']
@@ -943,6 +1206,7 @@ class personaInformacionBasicaSerializer(serializers.ModelSerializer):
             'username',
             'nombre',
             'apellido_paterno',
+            'apellido_materno',
         )
 
 """Serializer para que el contacto vea informacion basica de la usuaria"""
@@ -977,7 +1241,6 @@ class alertaPublicarSerializer(serializers.Serializer):
     fecha_hora_inicio = serializers.DateTimeField()
 
     def validate(self,data):
-
         #validar que el dipositivo exista
         try:
             dispositivo = DispositivoRastreador.objects.get(numero_serie = data['numero_serie'])
@@ -1021,7 +1284,7 @@ class alertaPublicarSerializer(serializers.Serializer):
 
         return ubicacion
 
-"""Serializer para que el dispositivo sepa si la alerta fue desactivada"""
+"""Serializer para que el dispositivo revise si la alerta fue desactivada"""
 class grupoDesactivacionSerializer(serializers.ModelSerializer):
 
     class Meta:
@@ -1070,27 +1333,29 @@ class desactivarAlertaSerializer(serializers.Serializer):
 
     def validate(self,data):
 
-        #instancia de la usuaria
-        persona = Persona.objects.get(username=data['username'])
-        usuaria = Usuaria.objects.get(persona=persona)
-
         #validar que el grupo de la usuaria tenga la alerta activa
         try:
-            grupo = Grupo.objects.get(usuaria=usuaria,estado_alerta=True)
+            grupo = Grupo.objects.get(
+                usuaria__persona__username=data['username'],
+                estado_alerta=True
+            )
         except Grupo.DoesNotExist:
-            raise serializers.ValidationError('Este grupo no tiene ninguna alerta activa')
+            raise serializers.ValidationError('Este grupo no tiene ninguna alerta activa.')
 
         #encontrar un dispositivo o dispositivos de la usuaria que coincida con el pin desactivador
-        d = DispositivoRastreador.objects.filter(usuaria=usuaria,pin_desactivador=data['pin_desactivador'])
-        if not d:
-            raise serializers.ValidationError('Pin incorrecto')
+        dispositivo = DispositivoRastreador.objects.filter(
+            usuaria__persona__username=data['username'],
+            pin_desactivador=data['pin_desactivador']
+        )
+
+        if not dispositivo:
+            raise serializers.ValidationError('Pin incorrecto.')
 
         #validar que la alerta exista
         try:
             Alerta.objects.get(grupo=grupo,nombre_alerta=data['nombre_alerta'])
         except Alerta.DoesNotExist:
-            raise serializers.ValidationError('Esta alerta no existe')
-
+            raise serializers.ValidationError('Esta alerta no existe.')
 
         return data
 
@@ -1150,6 +1415,42 @@ class cuestionarioCrearSerializer(serializers.Serializer):
 
     def validate(self,data):
 
+        #validar circunstancia y lazo
+        self.validarInformacion(data)
+        
+        #instancia del grupo
+        try:
+            grupo = Grupo.objects.get(
+                usuaria__persona__username=data['username_usuaria'],
+                estado_alerta=True
+            )
+        except:
+            raise serializers.ValidationError('Informacion del grupo incorrecta.')
+
+        #saber si existe una alerta con este nombre
+        #saber si la alerta forma parte de este grupo
+        try:
+            alerta = Alerta.objects.get(grupo=grupo,nombre_alerta=data['nombre_alerta'])
+        except Alerta.DoesNotExist:
+            raise serializers.ValidationError('Informacion de la alerta incorrecta.')
+
+        #saber si la persona es miembro de este grupo
+        try:
+            persona = Persona.objects.get(username=data['username_persona'])
+            miembro = Miembros.objects.get(grupo=grupo,persona=persona)
+        except:
+            raise serializers.ValidationError('Esta persona no es miembro del grupo.')
+
+        #saber si el miembro no ha contestado previamente esa alerta
+        try:
+            Cuestionario.objects.get(alerta=alerta,miembro=miembro)
+            raise serializers.ValidationError('Ya respondiste este cuestionario.')
+        except Cuestionario.DoesNotExist:
+            pass
+
+        return data
+
+    def validarInformacion(self,data):
         #saber si existe el tipo de circunstancia
         try:
             Circunstancia.objects.get(tipo_circunstancia=data['tipo_circunstancia'])
@@ -1162,38 +1463,6 @@ class cuestionarioCrearSerializer(serializers.Serializer):
         except Lazo.DoesNotExist:
             raise serializers.ValidationError('Este lazo no se encuentra registrado')
 
-        #saber si el grupo existe
-        #saber si el grupo tiene una alerta activa
-        try:
-            admin = Persona.objects.get(username=data['username_usuaria'])
-            usuaria = Usuaria.objects.get(persona=admin)
-            grupo = Grupo.objects.get(usuaria=usuaria,estado_alerta=True)
-        except:
-            raise serializers.ValidationError('Informacion del grupo incorrecta')
-
-        #saber si existe una alerta con este nombre
-        #saber si la alerta forma parte de este grupo
-        try:
-            alerta = Alerta.objects.get(grupo=grupo,nombre_alerta=data['nombre_alerta'])
-        except Alerta.DoesNotExist:
-            raise serializers.ValidationError('Informacion de la alerta incorrecta')
-
-        #saber si la persona es miembro de este grupo
-        try:
-            persona = Persona.objects.get(username=data['username_persona'])
-            miembro = Miembros.objects.get(grupo=grupo,persona=persona)
-        except:
-            raise serializers.ValidationError('Esta persona no es miembro del grupo')
-
-        #saber si no ha contestado este cuestionario previamente
-        try:
-            Cuestionario.objects.get(alerta=alerta,miembro=miembro)
-            raise serializers.ValidationError('Ya respondiste este cuestionario')
-        except Cuestionario.DoesNotExist:
-            pass
-
-        return data
-
     def create(self,data):
 
         #instancia del tipo de circunstancia
@@ -1203,9 +1472,7 @@ class cuestionarioCrearSerializer(serializers.Serializer):
         lazo = Lazo.objects.get(lazo=data['lazo'])
 
         #instancia del grupo
-        admin = Persona.objects.get(username=data['username_usuaria'])
-        usuaria = Usuaria.objects.get(persona=admin)
-        grupo = Grupo.objects.get(usuaria=usuaria)
+        grupo = Grupo.objects.get(usuaria__persona__username=data['username_usuaria'])
 
         #instancia de la alerta
         alerta = Alerta.objects.get(grupo=grupo,nombre_alerta=data['nombre_alerta'])
@@ -1253,48 +1520,50 @@ class cuestionarioActualizarSerializer(serializers.Serializer):
 
     def validate(self,data):
 
-        #saber si existe el tipo de circunstancia
-        try:
-            Circunstancia.objects.get(tipo_circunstancia=data['tipo_circunstancia'])
-        except Circunstancia.DoesNotExist:
-            raise serializers.ValidationError('Este tipo de circunstancia no se encuentra registrada')
-
-        #saber si existe el lazo
-        try:
-            Lazo.objects.get(lazo=data['lazo'])
-        except Lazo.DoesNotExist:
-            raise serializers.ValidationError('Este lazo no se encuentra registrado')
-
         #saber si el grupo existe
         #saber si el grupo tiene una alerta activa
         try:
-            admin = Persona.objects.get(username=data['username_usuaria'])
-            usuaria = Usuaria.objects.get(persona=admin)
-            grupo = Grupo.objects.get(usuaria=usuaria,estado_alerta=True)
+            grupo = Grupo.objects.get(
+                usuaria__persona__username=data['username_usuaria'],
+                estado_alerta=True
+            )
         except:
-            raise serializers.ValidationError('Informacion del grupo incorrecta')
+            raise serializers.ValidationError('Informacion del grupo incorrecta.')
 
         #saber si existe una alerta con este nombre
         #saber si la alerta forma parte de este grupo
         try:
             alerta = Alerta.objects.get(grupo=grupo,nombre_alerta=data['nombre_alerta'])
         except Alerta.DoesNotExist:
-            raise serializers.ValidationError('Informacion de la alerta incorrecta')
+            raise serializers.ValidationError('Informacion de la alerta incorrecta.')
 
         #saber si la persona es miembro de este grupo
         try:
             persona = Persona.objects.get(username=data['username_persona'])
             miembro = Miembros.objects.get(grupo=grupo,persona=persona)
         except:
-            raise serializers.ValidationError('Esta persona no es miembro del grupo')
+            raise serializers.ValidationError('Esta persona no es miembro del grupo.')
 
         #saber si ya ha contestado el cuestionario
         try:
             Cuestionario.objects.get(alerta=alerta,miembro=miembro)
         except Cuestionario.DoesNotExist:
-            raise serializers.ValidationError('Aun no haz contestado el cuestionario')
+            raise serializers.ValidationError('Aun no haz contestado el cuestionario.')
 
         return data
+
+    def validarInformacion(self,data):
+        #saber si existe el tipo de circunstancia
+        try:
+            Circunstancia.objects.get(tipo_circunstancia=data['tipo_circunstancia'])
+        except Circunstancia.DoesNotExist:
+            raise serializers.ValidationError('Este tipo de circunstancia no se encuentra registrada.')
+
+        #saber si existe el lazo
+        try:
+            Lazo.objects.get(lazo=data['lazo'])
+        except Lazo.DoesNotExist:
+            raise serializers.ValidationError('Este lazo no se encuentra registrado.')
 
     def create(self,data):
         #instancia de la circunstancia
@@ -1345,39 +1614,35 @@ class miCuestionarioSerializer(serializers.Serializer):
 
         #encontrar el grupo de la usuaria
         try:
-            admin = Persona.objects.get(username=data['username_usuaria'])
-            usuaria = Usuaria.objects.get(persona=admin)
-            grupo = Grupo.objects.get(usuaria=usuaria)
+            grupo = Grupo.objects.get(usuaria__persona__username=data['username_usuaria'])
         except:
-            raise serializers.ValidationError('Informacion del grupo invalida')
+            raise serializers.ValidationError('Informacion del grupo invalida.')
 
         #encontrar la alerta
         try:
             alerta = Alerta.objects.get(grupo=grupo,nombre_alerta=data['nombre_alerta'])
         except Alerta.DoesNotExist:
-            raise serializers.ValidationError('Informacion de la alerta invalida')
+            raise serializers.ValidationError('Informacion de la alerta invalida.')
 
         #encontrar el miembro
         try:
             persona = Persona.objects.get(username=data['username_persona'])
             miembro = Miembros.objects.get(grupo=grupo,persona=persona)
         except:
-            raise serializers.ValidationError('No eres parte de este grupo')
+            raise serializers.ValidationError('No eres parte de este grupo.')
 
         #encontrar el cuestionario
         try:
             cuestionario = Cuestionario.objects.get(miembro=miembro,alerta=alerta)
         except Cuestionario.DoesNotExist:
-            raise serializers.ValidationError('Aun no haz respondido el cuestionario')
+            raise serializers.ValidationError('Aun no haz respondido el cuestionario.')
 
         return data
 
     def create(self,data):
 
         #grupo
-        admin = Persona.objects.get(username=data['username_usuaria'])
-        usuaria = Usuaria.objects.get(persona=admin)
-        grupo = Grupo.objects.get(usuaria=usuaria)
+        grupo = Grupo.objects.get(usuaria__persona__username=data['username_usuaria'])
 
         #alerta
         alerta = Alerta.objects.get(grupo=grupo,nombre_alerta=data['nombre_alerta'])
@@ -1420,7 +1685,9 @@ class senaCrearSerializer(serializers.Serializer):
 
         #validar si el nombre de la ubicacion corporal existe
         try:
-            ubicacion = UbicacionCorporal.objects.get(nombre_ubicacion_corporal=data['nombre_ubicacion_corporal'])
+            ubicacion = UbicacionCorporal.objects.get(
+                nombre_ubicacion_corporal=data['nombre_ubicacion_corporal']
+            )
         except UbicacionCorporal.DoesNotExist:
             raise serializers.ValidationError('Esta ubicacion corporal no existe.')
 
@@ -1431,9 +1698,8 @@ class senaCrearSerializer(serializers.Serializer):
             raise serializers.ValidationError('Este tipo de sena particualr no existe.')
 
         #validar que la usuaria exista
-        admin = Persona.objects.get(username=data['username'])
         try:
-            usuaria = Usuaria.objects.get(persona=admin)
+            usuaria = Usuaria.objects.get(persona__username=data['username'])
         except Usuaria.DoesNotExist:
             raise serializers.ValidationError('Esta usuaria no existe.')
 
@@ -1444,24 +1710,26 @@ class senaCrearSerializer(serializers.Serializer):
                 ubicacion_corporal=ubicacion,
                 sena_particular=sena
             )
-            raise serializers.ValidationError('Ya registraste esta sena particular')
+            raise serializers.ValidationError('Ya registraste esta sena particular.')
         except UsuariaHasSenaUbicacion.DoesNotExist:
             pass
 
         return data
 
-
     def create(self,data):
 
         #instancia de la usuaria
-        persona = Persona.objects.get(username=data['username'])
-        usuaria = Usuaria.objects.get(persona=persona)
+        usuaria = Usuaria.objects.get(persona__username=data['username'])
 
         #instancia de la ubicacion corporal
-        ubicacion = UbicacionCorporal.objects.get(nombre_ubicacion_corporal=data['nombre_ubicacion_corporal'])
+        ubicacion = UbicacionCorporal.objects.get(
+            nombre_ubicacion_corporal=data['nombre_ubicacion_corporal']
+        )
 
         #instancia de la sena particular
-        senaParticular = SenasParticulares.objects.get(nombre_sena_particular=data['nombre_sena_particular'])
+        senaParticular = SenasParticulares.objects.get(
+            nombre_sena_particular=data['nombre_sena_particular']
+        )
 
         #registrar la sena corporal de la usuaria
         sena = UsuariaHasSenaUbicacion.objects.create(
@@ -1485,22 +1753,23 @@ class senaActualizarSerializer(serializers.Serializer):
 
         #isntancia de la ubicacion corporal
         try:
-            ubicacion = UbicacionCorporal.objects.get(nombre_ubicacion_corporal=data['nombre_ubicacion_corporal'])
+            ubicacion = UbicacionCorporal.objects.get(
+                nombre_ubicacion_corporal=data['nombre_ubicacion_corporal']
+            )
         except UbicacionCorporal.DoesNotExist:
-            raise serializers.ValidationError('Esta ubicacion corporal no existe')
+            raise serializers.ValidationError('Esta ubicacion corporal no existe.')
 
         #instancia de la seña particular
         try:
             sena = SenasParticulares.objects.get(nombre_sena_particular=data['nombre_sena_particular'])
         except SenasParticulares.DoesNotExist:
-            raise serializers.ValidationError('Esta tipo de sena no existe')
+            raise serializers.ValidationError('Esta tipo de sena no existe.')
 
         #instancia de la usuaria
-        persona = Persona.objects.get(username=data['username'])
         try:
-            usuaria = Usuaria.objects.get(persona=persona)
+            usuaria = Usuaria.objects.get(persona__username=data['username'])
         except Usuaria.DoesNotExist:
-            raise serializers.ValidationError('Informacion de la usuaria incorrecta')
+            raise serializers.ValidationError('Informacion de la usuaria incorrecta.')
 
         #instancia de la seña particular
         try:
@@ -1510,11 +1779,11 @@ class senaActualizarSerializer(serializers.Serializer):
                 sena_particular=sena
             )            
         except UsuariaHasSenaUbicacion.DoesNotExist:
-            raise serializers.ValidationError('No se tiene registrada esta sena particular')
+            raise serializers.ValidationError('No se tiene registrada esta sena particular.')
 
         #verificar que la descripcion no sea igual
         if sena.descripcion == data['descripcion']:
-            raise serializers.ValidationError('La descripcion no puede ser igual')
+            raise serializers.ValidationError('La descripcion no puede ser igual.')
 
         return data
 

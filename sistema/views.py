@@ -31,14 +31,13 @@ class personaViewSet(mixins.RetrieveModelMixin,
 
 
     def get_permissions(self):
-        if self.action in ['login','signup']:
+        if self.action in ['login','signup','correoRecuperacion','restablecerPassword']:
             permissions = [AllowAny]
         elif self.action in ['retrieve','update','destroy','partial_update','cambiarPassword']:
             permissions = [IsAuthenticated, IsAccountOwner]
         else:
             permissions = [IsAuthenticated]
         return [p() for p in permissions]
-
 
     @action(detail=False,methods=['POST'])
     def login(self,request):
@@ -50,7 +49,6 @@ class personaViewSet(mixins.RetrieveModelMixin,
             'access_token' : token
         }
         return Response(data,status=status.HTTP_201_CREATED)
-
 
     @action(detail=False,methods=['POST'])
     def signup(self,request):
@@ -82,8 +80,42 @@ class personaViewSet(mixins.RetrieveModelMixin,
 
     @action(detail=False,methods=['post'], url_path='correo-recuperacion')
     def correoRecuperacion(self,request,*args,**kwargs):
+        #serializer para validar el correo electronico ingresado
+        serializer = personaRecuperarSerializer(data = request.data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
 
-        return Response(status=status.HTTP_200_OK)
+        data = 'Entra a tu correo electronico y haz clic en el enlace para restablecer tu contraseña. Podria tardar unos minutos en aparecer, asegurate de revisar tus carpetas de spam y correos no deseados.'
+        return Response(data, status=status.HTTP_200_OK)
+
+    @action(detail=False,methods=['post'], url_path='restablecer-password')
+    def restablecerPassword(self,request,*args,**kwargs):
+        #argumentos [token] [password] [password_confirmation]
+        
+        serializer = restablecerPasswordSerializer(data = request.data)
+        serializer.is_valid(raise_exception=True)
+        persona = serializer.save()
+        
+        data = 'Clave de acceso cambiada con exito'
+
+        return Response(data,status=status.HTTP_200_OK)
+
+    @action(detail=False, methods=['post'], url_path='convertirme-usuaria')
+    def convertirUsuaria(self,request,*args,**kwargs):
+
+        persona = get_object_or_404(Persona,email=request.user)
+        self.request.data['username'] = persona.username 
+
+        serializer = convertirUsuariaSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        persona = serializer.save()
+
+        data = {
+            'persona' : personaSerializer(persona).data
+        }
+
+        return Response(data, status=status.HTTP_201_CREATED)
+
 
 
 
@@ -166,6 +198,7 @@ class usuariaViewSet(viewsets.GenericViewSet):
         data = usuariaSerializer(usuaria).data
 
         return Response(data,status=status.HTTP_200_OK)
+
 
 
 
@@ -256,6 +289,7 @@ class dispositivoViewSet(viewsets.GenericViewSet):
             estado = status.HTTP_404_NOT_FOUND
 
         return Response(data)
+
 
 
 
@@ -456,7 +490,7 @@ class alertaViewSet(viewsets.GenericViewSet):
             #grupo o grupos en los que se encuentra la persona y que tienen la alerta activa
             grupos = Grupo.objects.filter(integrantes=persona,estado_alerta=True)
 
-            #se recupera la informacion de la ultima alerta que tenga el grupo
+            #se recupera la informacion de la ultima alerta que tengan los grupos encontrados
             for grupo in grupos:
                 alerta = Alerta.objects.filter(grupo=grupo).order_by('fecha_hora').last()
                 serializer = alertaGrupoSerializer(alerta)
@@ -481,15 +515,19 @@ class alertaViewSet(viewsets.GenericViewSet):
         #instancia de la persona
         miembro = get_object_or_404(Persona,email=self.request.user)
 
-        #instancia de la usuaria
-        admin = get_object_or_404(Persona,username=self.request.data['username'])
-        usuaria = get_object_or_404(Usuaria,persona=admin)
-
-        #encontrar ese grupo con la usuaria y el miembro
-        grupo = get_object_or_404(Grupo,usuaria=usuaria,integrantes=miembro)
+        #encontrar el grupo con la usuaria y el miembro
+        grupo = get_object_or_404(
+            Grupo,
+            usuaria__persona__username=self.request.data['username'],
+            integrantes=miembro
+        )
 
         #alerta con el grupo y el nombre de la alerta
-        alerta = get_object_or_404(Alerta,grupo=grupo,nombre_alerta=self.request.data['nombre_alerta'])
+        alerta = get_object_or_404(
+            Alerta,
+            grupo=grupo,
+            nombre_alerta=self.request.data['nombre_alerta']
+        )
 
         #traer las ubicaciones de esa alerta
         ubicaciones = Ubicacion.objects.filter(alerta=alerta)
@@ -502,13 +540,13 @@ class alertaViewSet(viewsets.GenericViewSet):
     @action(detail=False,methods=['get'],url_path='mi-alerta')
     def miAlerta(self,request,*args,**kwargs):
 
-        #instancia de la usuaria
-        persona = get_object_or_404(Persona,email=self.request.user)
-        usuaria = get_object_or_404(Usuaria,persona=persona)
-
         #grupo de la usuaria
-        grupo = get_object_or_404(Grupo,usuaria=usuaria,estado_alerta=True)
-
+        grupo = get_object_or_404(
+            Grupo,
+            usuaria__persona__email=self.request.user,
+            estado_alerta=True
+        )
+        
         #alerta mas reciente
         alerta = Alerta.objects.filter(grupo=grupo).order_by('fecha_hora').last()
 

@@ -1,0 +1,46 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+
+<head>
+    <title>Restablecer contraseña</title>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" /> 
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+</head>
+
+<body style="margin: 0; padding: 0;">
+
+    <!--Mensaje que se le muestra al usuario-->
+    <p style="text-align: center;">Hola {{nombre}}, ¿Quieres restablecer tu contraseña?</p>
+    <br>
+    
+    <p style="text-align: center;">
+        Alguien (esperemos que tú) nos ha solicitado restablecer la contraseña de tu cuenta.
+    </p>
+    <p style="text-align: center;">
+        Haz clic en el botón siguiente para hacerlo. Si no solicitaste restablecer la contraseña, puedes ignorar este mensaje.
+    </p>
+    <br>
+    
+    <!--boton con el enlace del frontend donde el usuario asigna su nueva contraseña-->
+    <p style="text-align: center;">
+        <a href="http://127.0.0.1:8000/persona/restablecer-password/?token={{token}}" 
+        style="text-decoration:none; width: 200px; padding: 15px; 
+        font-weight: MEDIUM; background: #c7388b; color: #ffffff; 
+        cursor: pointer; border-radius: 5px; 
+        font-size: 115%;">
+        Restablecer contraseña
+        </a>
+    </p>
+    <br>
+
+    <!--Enlace si el boton no se puede mostrar-->
+    <p style="text-align: center;">
+        O haz clic en este enlace: 
+        <a href="http://127.0.0.1:8000/persona/restablecer-password/?token={{token}}">
+            http://127.0.0.1:8000/persona/restablecer-password/?token={{token}}
+        </a>
+    </p>
+
+</body>
+
+</html>
