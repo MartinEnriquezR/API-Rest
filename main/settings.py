@@ -172,9 +172,9 @@ DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
 #configuracion del servicio de firebase cloud messaging
 FCM_DJANGO_SETTINGS = {
          # default: _('FCM Django')
-        "APP_VERBOSE_NAME": "[string for AppConfig's verbose_name]",
+        "APP_VERBOSE_NAME": "Notificacion",
          # Your firebase API KEY
-        "FCM_SERVER_KEY": "[your api key]",
+        "FCM_SERVER_KEY": "AAAAE749Ggs:APA91bHiyeGjV33SPArWZqxKAeU_bw1HmoGdoq2sWHRrjKix9JRDkZRgAXN5ayaeMtyQPyPMnXgCtClZNR_gLzUZDcwHG2I0gGjcnnEBVZQ6xlHpE5RDruRbuyZnj_MZzfK5QnqW5hWU",
          # true if you want to have only one active device per registered user at a time
          # default: False
         "ONE_DEVICE_PER_USER": False,

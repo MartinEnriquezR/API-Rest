@@ -19,7 +19,6 @@ from .models import *
 from .permissions import *
 
 
-
 class personaViewSet(mixins.RetrieveModelMixin,
                      mixins.UpdateModelMixin,
                      mixins.DestroyModelMixin,
@@ -562,24 +561,14 @@ class alertaViewSet(viewsets.GenericViewSet):
         #[nombre_alerta] que debe de ser la mas reciente
         #[pin_desactivador] que ingresa la usuaria al dispositivo
 
-        #Validar que la usuaria existe
-        persona = get_object_or_404(Persona,email=self.request.user)
-        usuaria = get_object_or_404(Usuaria, persona = persona)
-        self.request.data['username']=persona.username
+        #username de la usuaria
+        usuaria = get_object_or_404(Usuaria, persona__email = self.request.user)
+        self.request.data['username'] = usuaria.persona.username
 
         #Validar informacion
         serializer = desactivarAlertaSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-
-        grupo = Grupo.objects.get(usuaria=usuaria,estado_alerta=True)
-        alerta = Alerta.objects.get(grupo=grupo,nombre_alerta=self.request.data['nombre_alerta'])
-
-        #desactivar la alerta
-        grupo.estado_alerta = False
-        grupo.save()
-        #borrar la alerta
-        alerta.delete()
-
+        serializer.save()
 
         return Response(status=status.HTTP_204_NO_CONTENT)
 

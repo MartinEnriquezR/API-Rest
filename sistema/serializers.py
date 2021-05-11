@@ -30,6 +30,9 @@ from django.template.loader import render_to_string
 #expresiones regulares
 import re
 
+#envio de notificaciones con Firebase Cloud Messaging
+from fcm_django.models import FCMDevice
+
 
 
 """Informacion de la persona"""
@@ -330,9 +333,15 @@ class convertirUsuariaSerializer(serializers.Serializer):
     def validarEnfermedades(self,data):
         #validar que las enfermedades existan en la base de datos
         enfermedades = data['enfermedades']
+        numeroEnfermedades = len(enfermedades)
+
         for enfermedadData in enfermedades:
             try:
                 Enfermedad.objects.get(nombre_enfermedad=enfermedadData['nombre_enfermedad'])
+                #validar que no se registre "Ninguna" y otra enfermedad
+                if enfermedadData['nombre_enfermedad'] == 'Ninguna' and numeroEnfermedades != 1:
+                    raise serializers.ValidationError('No puedes registrar ninguna y otra enfermedad.')
+
             except Enfermedad.DoesNotExist:
                 raise serializers.ValidationError('Esta enfermedad no se encuentra disponible.')
 
@@ -375,6 +384,11 @@ class convertirUsuariaSerializer(serializers.Serializer):
         )
         
         #guardar las enfermedades
+        self.registrarEnfermedades(usuaria,data)
+
+        return persona
+
+    def registrarEnfermedades(self,usuaria,data):
         enfermedades = data.pop('enfermedades')
         for enfermedadData in enfermedades:
             usuaria.enfermedades.add(
@@ -382,8 +396,6 @@ class convertirUsuariaSerializer(serializers.Serializer):
                 Enfermedad.objects.get(nombre_enfermedad=enfermedadData['nombre_enfermedad'])
             )
         usuaria.save()
-
-        return persona
 
 
 
@@ -432,75 +444,26 @@ class usuariaSignupSerializer(serializers.Serializer):
     enfermedades = EnfermedadSerializer(many=True)
 
     def validate(self,data):
-        """validacion datos de la persona"""
-
+        
         passwd = data['password']
         passwdConf = data['password_confirmation']
         genero = data['genero']
         
         #validar las contraseñas, deben ser iguales
         if passwd != passwdConf:
-            raise serializers.ValidationError('las contraseñas ingresadas no coinciden')
+            raise serializers.ValidationError('Las contraseñas ingresadas no coinciden.')
+        
         #valida que la contraseña no sea comun
         password_validation.validate_password(passwd)
 
-
-        #validar que el genero sea femenino
-        if genero != 'Femenino':
-            raise serializers.ValidationError('el genero de la usuaria debe de ser femenino')
-
-
-        
+        #validar la edad de la usuaria
+        self.validarEdad(data)
+        #validar el genero de la usuaria
+        self.validarGenero(data)
         #validar que los datos existan dentro de la base de datos
-        try:
-            nacionalidad = Pais.objects.get(nacionalidad=data['nacionalidad'])
-        except Pais.DoesNotExist:
-            raise serializers.ValidationError('Este pais no se encuentra registrado')
-
-        try:
-            tipo_nariz = TipoNariz.objects.get(tipo_nariz=data['tipo_nariz'])
-        except TipoNariz.DoesNotExist:
-            raise serializers.ValidationError('Este tipo de nariz no se encuentra registrado')
-
-        try:
-            complexion = Complexion.objects.get(complexion=data['complexion'])
-        except Complexion.DoesNotExist:
-            raise serializers.ValidationError('Esta complexion no esta registrada')
-
-        try:
-            color_ojo = ColorOjos.objects.get(color_ojo=data['color_ojo'])
-        except ColorOjos.DoesNotExist:
-            raise serializers.ValidationError('Esta color de ojos no esta registrado')
-
-        try:
-            forma_rostro = FormaRostro.objects.get(forma_rostro=data['forma_rostro'])
-        except FormaRostro.DoesNotExist:
-            raise serializers.ValidationError('Esta forma de rostro no se encuentra registrada')
-
-        try:
-            color_cabello = ColorCabello.objects.get(color_cabello=data['color_cabello'])
-        except ColorCabello.DoesNotExist:
-            raise serializers.ValidationError('Este color de cabello no se encuentra registrado')
-
-        try:
-            color_piel = ColorPiel.objects.get(color_piel=data['color_piel'])
-        except ColorPiel.DoesNotExist:
-            raise serializers.ValidationError('Este color de piel no se encuentra registrado')
-
-        try:
-            tipo_ceja = TipoCejas.objects.get(tipo_ceja=data['tipo_ceja'])
-        except TipoCejas.DoesNotExist:
-            raise serializers.ValidationError('Este tipo de cejas no se encuentran registradas')
-
-        try:
-            textura_cabello = TexturaCabello.objects.get(textura_cabello=data['textura_cabello'])
-        except TexturaCabello.DoesNotExist:
-            raise serializers.ValidationError('Este tipo de cabello no se encuentran registrado')
-
-        try:
-            EstadoCivil.objects.get(estado_civil=data['estado_civil'])
-        except EstadoCivil.DoesNotExist:
-            raise serializers.ValidationError('Este tipo de estado_civil no se encuentra registrado')
+        self.validarInformacion(data)
+        #validar las enfermedades de la usuaria
+        self.validarEnfermedades(data)
 
         return(data)
 
@@ -576,9 +539,15 @@ class usuariaSignupSerializer(serializers.Serializer):
     def validarEnfermedades(self,data):
         #validar que las enfermedades existan en la base de datos
         enfermedades = data['enfermedades']
+        numeroEnfermedades = len(enfermedades)
+
         for enfermedadData in enfermedades:
             try:
                 Enfermedad.objects.get(nombre_enfermedad=enfermedadData['nombre_enfermedad'])
+                #validar que no se registre "Ninguna" y otra enfermedad
+                if enfermedadData['nombre_enfermedad'] == 'Ninguna' and numeroEnfermedades != 1:
+                    raise serializers.ValidationError('No puedes registrar ninguna y otra enfermedad.')
+
             except Enfermedad.DoesNotExist:
                 raise serializers.ValidationError('Esta enfermedad no se encuentra disponible.')
 
@@ -695,7 +664,13 @@ class usuariaActualizarSerializer(serializers.Serializer):
 
     def validate(self,data):
         #validar que exista cada una de las opciones
-        
+        self.validarInformacion(data)
+        #validar que las enfermedades existan 
+        self.validarEnfermedades(data)
+
+        return data
+
+    def validarInformacion(self,data):
         try:
             EstadoCivil.objects.get(estado_civil=data['estado_civil'])
         except EstadoCivil.DoesNotExist:
@@ -746,15 +721,20 @@ class usuariaActualizarSerializer(serializers.Serializer):
         except TexturaCabello.DoesNotExist:
             raise serializers.ValidationError('Esta textura de cabello no es valida')
 
-        #validar que las enfermedades existan 
+    def validarEnfermedades(self,data):
+        #validar que las enfermedades existan en la base de datos
         enfermedades = data['enfermedades']
+        numeroEnfermedades = len(enfermedades)
+
         for enfermedadData in enfermedades:
             try:
                 Enfermedad.objects.get(nombre_enfermedad=enfermedadData['nombre_enfermedad'])
-            except Enfermedad.DoesNotExist:
-                raise serializers.ValidationError('Esta enfermedad no existe')
+                #validar que no se registre "Ninguna" y otra enfermedad
+                if enfermedadData['nombre_enfermedad'] == 'Ninguna' and numeroEnfermedades != 1:
+                    raise serializers.ValidationError('No puedes registrar ninguna y otra enfermedad.')
 
-        return data
+            except Enfermedad.DoesNotExist:
+                raise serializers.ValidationError('Esta enfermedad no se encuentra disponible.')
 
     def create(self,data):
         persona = Persona.objects.get(username=data['username'])
@@ -1282,7 +1262,40 @@ class alertaPublicarSerializer(serializers.Serializer):
         )
         ubicacion.save()
 
+        #enviar notificacion si la alerta se registra por primera vez
+        if created == True:
+            self.enviarNotificacion(grupo,obj)
+
         return ubicacion
+
+    def enviarNotificacion(self,grupo,alerta):
+        #informacion del grupo
+        nombre_grupo = grupo.nombre
+
+        #informacion de la usuaria
+        nombre = grupo.usuaria.persona.nombre
+        apellido_paterno = grupo.usuaria.persona.apellido_paterno
+
+        #informacion de la alerta
+        nombre_alerta = alerta.nombre_alerta
+        fecha_hora = alerta.fecha_hora
+
+        integrantes = grupo.integrantes.all()
+        for persona in integrantes:
+            #nombre de la persona
+            nombre_contacto = persona.nombre
+
+            devices = FCMDevice.objects.filter(user=persona)
+            devices.send_message(
+                title='Hola {}, {} {} activo una alerta en el grupo "{}"'.format(
+                    nombre_contacto,nombre,apellido_paterno,nombre_grupo
+                ),
+                body='La alerta de nombre: "{}" se registro a las {}'.format(
+                    nombre_alerta,fecha_hora
+                ),
+                #duracion de 72 horas
+                time_to_live=259200
+            )
 
 """Serializer para que el dispositivo revise si la alerta fue desactivada"""
 class grupoDesactivacionSerializer(serializers.ModelSerializer):
@@ -1333,31 +1346,72 @@ class desactivarAlertaSerializer(serializers.Serializer):
 
     def validate(self,data):
 
-        #validar que el grupo de la usuaria tenga la alerta activa
-        try:
-            grupo = Grupo.objects.get(
-                usuaria__persona__username=data['username'],
-                estado_alerta=True
-            )
-        except Grupo.DoesNotExist:
-            raise serializers.ValidationError('Este grupo no tiene ninguna alerta activa.')
+        #validar informacion de la alerta
+        self.validarAlerta(data)
 
-        #encontrar un dispositivo o dispositivos de la usuaria que coincida con el pin desactivador
+        #validar el pin desactivador
         dispositivo = DispositivoRastreador.objects.filter(
             usuaria__persona__username=data['username'],
             pin_desactivador=data['pin_desactivador']
         )
-
         if not dispositivo:
             raise serializers.ValidationError('Pin incorrecto.')
+
+        return data
+
+    def validarAlerta(self,data):
+        #validar que el grupo exista y tenga una la alerta activa
+        try:
+            grupo = Grupo.objects.get(usuaria__persona__username=data['username'],estado_alerta=True)
+        except Grupo.DoesNotExist:
+            raise serializers.ValidationError('Este grupo no tiene ninguna alerta activa.')
 
         #validar que la alerta exista
         try:
             Alerta.objects.get(grupo=grupo,nombre_alerta=data['nombre_alerta'])
         except Alerta.DoesNotExist:
             raise serializers.ValidationError('Esta alerta no existe.')
+        
+    def create(self,data):
+        #instancia del grupo
+        grupo = Grupo.objects.get(usuaria__persona__username=data['username'],estado_alerta=True)
+        #instancia de la alerta
+        alerta = Alerta.objects.get(grupo=grupo,nombre_alerta=data['nombre_alerta'])
 
-        return data
+        #desactivar alerta del grupo
+        grupo.estado_alerta=False
+        grupo.save()
+
+        #enviar la notificacion de desactivacion
+        self.enviarNotificacion(grupo,alerta)
+        
+        #borrar la alerta
+        alerta.delete()
+
+        return grupo
+   
+    def enviarNotificacion(self,grupo,alerta):
+        #nombre de la usuaria
+        nombre_usuaria = grupo.usuaria.persona.nombre
+        apellido_paterno = grupo.usuaria.persona.apellido_paterno
+
+        #nombre de la alerta
+        nombre_alerta = alerta.nombre_alerta
+
+        integrantes = grupo.integrantes.all()
+        for persona in integrantes:
+            nombre_contacto = persona.nombre
+            devices = FCMDevice.objects.filter(user=persona)
+            devices.send_message(
+                title='Alerta desactivada',
+                body='Hola {}, la alerta de nombre: "{}" fue desactivada por la usuaria {} {}'.format(
+                    nombre_contacto,
+                    nombre_alerta,
+                    nombre_usuaria,
+                    apellido_paterno
+                ),
+                time_to_live=259200
+            ) 
 
 
 
